@@ -87,12 +87,20 @@ export default function App() {
   }, []);
 
   const fetchTasks = async () => {
+    setLoading(true);
     try {
       const res = await fetch('/api/tasks');
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'ไม่สามารถดึงข้อมูลได้');
+      }
+      
       setTasks(Array.isArray(data) ? data : []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch tasks', err);
+      // Don't alert on initial load to avoid annoying popups if not configured yet
+      if (tasks.length > 0) alert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -130,16 +138,24 @@ export default function App() {
     }
 
     try {
-      await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...taskData, status, delayDays })
       });
-      fetchTasks();
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+
+      await fetchTasks();
       setIsModalOpen(false);
       setEditingTask(null);
-    } catch (err) {
+      alert('บันทึกข้อมูลสำเร็จ');
+    } catch (err: any) {
       console.error('Failed to save task', err);
+      alert('ไม่สามารถบันทึกได้: ' + err.message + '\n\nกรุณาตรวจสอบว่าได้ตั้งค่า Secrets และ Share Sheet ให้ Service Account เรียบร้อยแล้ว');
     }
   };
 
