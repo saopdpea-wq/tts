@@ -114,7 +114,16 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch('/api/tasks');
-      const data = await res.json();
+      
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response from fetchTasks:", text);
+        throw new Error(`Server returned non-JSON response: ${res.status}`);
+      }
       
       if (!res.ok) {
         throw new Error(data.error || 'ไม่สามารถดึงข้อมูลได้');
@@ -168,9 +177,18 @@ export default function App() {
         body: JSON.stringify({ ...taskData, status, delayDays })
       });
       
+      let responseData;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        responseData = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response:", text);
+        throw new Error(`Server returned non-JSON response: ${res.status} ${res.statusText}`);
+      }
+
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
       }
 
       await fetchTasks();
@@ -179,7 +197,7 @@ export default function App() {
       alert('บันทึกข้อมูลสำเร็จ');
     } catch (err: any) {
       console.error('Failed to save task', err);
-      alert('ไม่สามารถบันทึกได้: ' + err.message + '\n\nกรุณาตรวจสอบว่าได้ตั้งค่า Secrets และ Share Sheet ให้ Service Account เรียบร้อยแล้ว');
+      alert('ไม่สามารถบันทึกได้: ' + err.message + '\n\nกรุณาตรวจสอบ:\n1. ได้ตั้งค่า Environment Variables ใน Vercel ครบถ้วน\n2. ได้แชร์ Sheet ให้ Service Account เป็น Editor แล้ว\n3. รูปแบบ Private Key ถูกต้อง');
     }
   };
 

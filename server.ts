@@ -20,46 +20,26 @@ function formatPrivateKey(key: string | undefined) {
   
   let k = key.trim();
 
-  // 1. กรณีเป็น JSON ทั้งไฟล์
-  if (k.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(k);
-      if (parsed.private_key) k = parsed.private_key;
-    } catch (e) { /* ignore */ }
+  // 1. ลบเครื่องหมายคำพูดที่อาจติดมา
+  k = k.replace(/^["']|["']$/g, "");
+
+  // 2. จัดการเรื่อง \n (สำคัญมากสำหรับ Vercel)
+  // ถ้ามี \n ที่เป็นตัวอักษร ให้แปลงเป็นบรรทัดใหม่จริงๆ
+  if (k.includes('\\n')) {
+    k = k.replace(/\\n/g, '\n');
   }
 
-  // 2. ลบเครื่องหมายคำพูดและจัดการตัวอักษรขึ้นบรรทัดใหม่
-  k = k.replace(/^["']|["']$/g, "") // ลบ " หรือ ' ที่หัวท้าย
-       .replace(/\\n/g, '\n')       // แปลง \n เป็นบรรทัดใหม่
-       .replace(/\\r/g, '');        // ลบ \r ออก
-
+  // 3. ตรวจสอบว่ามี Header/Footer หรือยัง
   const beginMarker = "-----BEGIN PRIVATE KEY-----";
   const endMarker = "-----END PRIVATE KEY-----";
-  
-  // 3. ดึงเฉพาะส่วนเนื้อหา Base64 ออกมา
-  let base64Content = k;
-  if (k.includes(beginMarker)) {
-    const start = k.indexOf(beginMarker) + beginMarker.length;
-    const end = k.indexOf(endMarker);
-    base64Content = end !== -1 ? k.substring(start, end) : k.substring(start);
+
+  if (!k.includes(beginMarker)) {
+    // ถ้าไม่มี Header ให้พยายามจัดรูปแบบใหม่
+    const cleanKey = k.replace(/\s+/g, ''); // ลบช่องว่างทั้งหมด
+    k = `${beginMarker}\n${cleanKey}\n${endMarker}`;
   }
 
-  // 4. ล้างทุกอย่างที่ไม่ใช่ Base64 (ป้องกันช่องว่างหรือตัวอักษรแปลกปลอมที่ทำให้ ASN.1 พัง)
-  const cleanBase64 = base64Content.replace(/[^A-Za-z0-9+/=]/g, '');
-
-  // 5. จัดรูปแบบใหม่: 64 ตัวอักษรต่อบรรทัด (มาตรฐาน PEM)
-  const rows = cleanBase64.match(/.{1,64}/g);
-  const formattedBase64 = rows ? rows.join('\n') : cleanBase64;
-
-  // 6. ประกอบกลับเป็น PEM ที่สมบูรณ์
-  const finalKey = `${beginMarker}\n${formattedBase64}\n${endMarker}`;
-  
-  // Debug (แสดงเฉพาะโครงสร้างเบื้องต้นเพื่อความปลอดภัย)
-  console.log("Key Formatted Successfully:");
-  console.log("- Base64 Start:", cleanBase64.substring(0, 10) + "...");
-  console.log("- Total Lines:", finalKey.split('\n').length);
-  
-  return finalKey;
+  return k;
 }
 
 // รองรับทั้งชื่อตัวแปรแบบสั้นและแบบเต็มตามที่ปรากฏในรูป Vercel
@@ -70,9 +50,15 @@ let isInitialized = false;
 // Initialize Google Sheets
 async function getDoc() {
   if (!SHEET_ID || !CLIENT_EMAIL || !PRIVATE_KEY) {
+    console.error("Missing Env Vars:", { SHEET_ID: !!SHEET_ID, CLIENT_EMAIL: !!CLIENT_EMAIL, PRIVATE_KEY: !!PRIVATE_KEY });
     throw new Error("ไม่พบข้อมูลการเชื่อมต่อ (Missing Environment Variables)");
   }
   try {
+    // Log key format for debugging (safe part only)
+    console.log("Attempting Google Auth with email:", CLIENT_EMAIL);
+    console.log("Key length:", PRIVATE_KEY.length);
+    console.log("Key starts with:", PRIVATE_KEY.substring(0, 30));
+
     const serviceAccountAuth = new JWT({
       email: CLIENT_EMAIL,
       key: PRIVATE_KEY,
@@ -115,11 +101,16 @@ async function getDoc() {
 // API Routes
 app.get("/api/tasks", async (req, res) => {
   try {
+    console.log("GET /api/tasks - Attempting to fetch tasks");
     const doc = await getDoc();
     const sheet = doc.sheetsByTitle["Tasks"];
-    if (!sheet) throw new Error("ไม่พบแผ่นงาน 'Tasks'");
+    if (!sheet) {
+      console.error("Sheet 'Tasks' not found");
+      return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks' ใน Google Sheet ของคุณ" });
+    }
     
     const rows = await sheet.getRows();
+    console.log(`Fetched ${rows.length} rows`);
     const tasks = rows.map(row => ({
       id: row.get("id"),
       taskName: row.get("taskName"),
@@ -141,9 +132,13 @@ app.get("/api/tasks", async (req, res) => {
 
 app.post("/api/tasks", async (req, res) => {
   try {
+    console.log("POST /api/tasks - Attempting to add task");
     const doc = await getDoc();
     const sheet = doc.sheetsByTitle["Tasks"];
-    if (!sheet) throw new Error("ไม่พบแผ่นงาน 'Tasks'");
+    if (!sheet) {
+      console.error("Sheet 'Tasks' not found");
+      return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks' ใน Google Sheet ของคุณ" });
+    }
 
     const newTask = {
       ...req.body,
