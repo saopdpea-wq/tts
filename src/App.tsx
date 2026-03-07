@@ -46,9 +46,12 @@ function cn(...inputs: ClassValue[]) {
 interface Task {
   id: string;
   taskName: string;
-  unit: string;
+  unit: string; // Will store comma-separated units
   responsible: string;
   frequency: string;
+  priority: string;
+  taskType: string;
+  progress: string;
   deadline: string;
   actualCompletion: string;
   delayDays: string;
@@ -59,7 +62,69 @@ interface Task {
 
 const UNITS = [
   'หน่วย 1', 'หน่วย 2', 'หน่วย 3', 'หน่วย 4', 'หน่วย 5', 
-  'หน่วย 6', 'หน่วย 7', 'หน่วย 8', 'หน่วย 9', 'หน่วย 10', 'หน่วย 11'
+  'หน่วย 6', 'หน่วย 7', 'หน่วย 17', 'หน่วย 19', 'หน่วย 20', 'หน่วย 21'
+];
+
+const STATIONS = [
+  'แผนก',
+  'สถานีไฟฟ้าท่าทราย 1 (จุดจ่ายไฟชั่วคราว)',
+  'สถานีไฟฟ้าบางปลา',
+  'สถานีไฟฟ้าสมุทรสาคร 2',
+  'สถานีไฟฟ้าท่าทราย 2 (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 16',
+  'สถานีไฟฟ้าสมุทรสาคร 16 (ชั่วคราว)',
+  'สถานีไฟฟ้ากระทุ่มแบน 2',
+  'สถานีไฟฟ้ากระทุ่มแบน 1',
+  'สถานีไฟฟ้าสมุทรสาคร 10',
+  'สถานีไฟฟ้ากระทุ่มแบน 6',
+  'สถานีไฟฟ้ากระทุ่มแบน 6 (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 10 (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 7',
+  'สถานีไฟฟ้าสมุทรสาคร 1',
+  'สถานีไฟฟ้าสมุทรสาคร 9',
+  'สถานีไฟฟ้าสมุทรสาคร 12 (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 17 (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 3',
+  'สถานีไฟฟ้าศาลายา',
+  'สถานีไฟฟ้าพุทธมณฑล 2',
+  'สถานีไฟฟ้าพุทธมณฑล 3',
+  'สถานีไฟฟ้าอู่ทอง 1',
+  'สถานีไฟฟ้าสองพี่น้อง 1',
+  'สถานีไฟฟ้าสองพี่น้อง 2',
+  'สถานีไฟฟ้าอู่ทอง 2 (ชั่วคราว)',
+  'สถานีไฟฟ้าสุพรรณบุรี 1',
+  'สถานีไฟฟ้าบางปลาม้า',
+  'สถานีไฟฟ้าสุพรรณบุรี 2',
+  'สถานีไฟฟ้าด่านช้าง',
+  'สถานีไฟฟ้าเลาขวัญ',
+  'สถานีไฟฟ้าเดิมบางนางบวช',
+  'สถานีไฟฟ้าบางเลน 1',
+  'สถานีไฟฟ้าดอนตูม',
+  'สถานีไฟฟ้ากำแพงแสน',
+  'สถานีไฟฟ้าบางเลน 3 (ชั่วคราว)',
+  'สถานีไฟฟ้านครชัยศรี 1',
+  'สถานีไฟฟ้านครชัยศรี 2',
+  'สถานีไฟฟ้าสามพราน 3',
+  'สถานีไฟฟ้าดอนเจดีย์',
+  'สถานีไฟฟ้าสามชุก',
+  'สถานีไฟฟ้าศรีประจันต์ (ชั่วคราว)',
+  'สถานีไฟฟ้าสมุทรสาคร 5',
+  'สถานีไฟฟ้าบ้านแพ้ว',
+  'สถานีไฟฟ้าบ้านแพ้ว 2'
+];
+
+const PRIORITIES = [
+  { id: '1', label: 'สำคัญและเร่งด่วน (ทำทันที)', color: '#ef4444', bg: '#fee2e2' },
+  { id: '2', label: 'สำคัญแต่ไม่เร่งด่วน (วางแผนทำ)', color: '#f59e0b', bg: '#fef3c7' },
+  { id: '3', label: 'ไม่สำคัญแต่เร่งด่วน (มอบหมาย)', color: '#10b981', bg: '#d1fae5' },
+  { id: '4', label: 'ไม่สำคัญและไม่เร่งด่วน (ทำเมื่อว่าง)', color: '#3b82f6', bg: '#dbeafe' }
+];
+
+const TASK_TYPES = [
+  'งาน routine',
+  'งานสำคัญที่ต้องทำทันที เร่งด่วน',
+  'งานสำคัญที่ต้องวางแผน ไม่เร่งด่วน',
+  'งานที่มอบหมาย ไม่เร่งด่วน'
 ];
 
 const STATUS_COLORS = {
@@ -76,15 +141,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [initialForwardData, setInitialForwardData] = useState<Partial<Task> | null>(null);
   
   // Login state
-  const [password, setPassword] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [loginError, setLoginError] = useState('');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [unitFilter, setUnitFilter] = useState('ทุกหน่วยงาน');
   const [statusFilter, setStatusFilter] = useState('ทุกสถานะ');
+  const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'status'>('none');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -95,19 +162,18 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple password check - in a real app this would be more secure
-    if (password === '1234') {
+    if (employeeId.length === 6 && /^\d+$/.test(employeeId)) {
       setIsAuthenticated(true);
       setLoginError('');
     } else {
-      setLoginError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่');
+      setLoginError('กรุณากรอกรหัสพนักงานให้ครบ 6 หลัก');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setTasks([]);
-    setPassword('');
+    setEmployeeId('');
   };
 
   const fetchTasks = async () => {
@@ -143,8 +209,11 @@ export default function App() {
     try {
       await fetch('/api/logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ACCESS_APP', details: 'User accessed the application' })
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-email': employeeId 
+        },
+        body: JSON.stringify({ action: 'LOGIN', details: `Employee ${employeeId} logged in` })
       });
     } catch (err) {
       console.error('Failed to log access', err);
@@ -173,7 +242,10 @@ export default function App() {
     try {
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-email': employeeId
+        },
         body: JSON.stringify({ ...taskData, status, delayDays })
       });
       
@@ -215,11 +287,38 @@ export default function App() {
     return tasks.filter(task => {
       const matchesSearch = task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           task.responsible.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit === unitFilter;
+      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.includes(unitFilter);
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
       return matchesSearch && matchesUnit && matchesStatus;
     });
   }, [tasks, searchQuery, unitFilter, statusFilter]);
+
+  const groupedTasks = useMemo(() => {
+    if (groupBy === 'none') return { 'รายการทั้งหมด': filteredTasks };
+    
+    return filteredTasks.reduce((acc, task) => {
+      let key = 'อื่นๆ';
+      if (groupBy === 'unit') {
+        key = task.unit || 'ไม่ระบุหน่วยงาน';
+      } else if (groupBy === 'status') {
+        key = task.status;
+      }
+      
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(task);
+      return acc;
+    }, {} as Record<string, Task[]>);
+  }, [filteredTasks, groupBy]);
+
+  const handleForwardTask = (task: Task) => {
+    setEditingTask(null);
+    setInitialForwardData({
+      taskName: `[ส่งต่อ] ${task.taskName}`,
+      progress: task.progress,
+      remarks: `ส่งต่อจาก: ${task.unit}`
+    });
+    setIsModalOpen(true);
+  };
 
   // Dashboard Stats
   const stats = useMemo(() => {
@@ -271,18 +370,19 @@ export default function App() {
               <LayoutDashboard size={32} />
             </div>
             <h1 className="text-2xl font-bold text-[#1A1A1A]">เข้าสู่ระบบจัดการงาน</h1>
-            <p className="text-[#6B7280] text-center mt-2">กรุณาใส่รหัสผ่านเพื่อเข้าใช้งานระบบและเชื่อมต่อ Google Sheets</p>
+            <p className="text-[#6B7280] text-center mt-2">กรุณากรอกรหัสพนักงาน 6 หลักเพื่อเข้าใช้งาน</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-[#374151] mb-2">รหัสผ่าน</label>
+              <label className="block text-sm font-medium text-[#374151] mb-2">รหัสพนักงาน</label>
               <input 
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="กรอกรหัสผ่าน (1234)"
-                className="w-full px-4 py-3 rounded-xl border border-[#E5E7EB] focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                type="text"
+                maxLength={6}
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value.replace(/\D/g, ''))}
+                placeholder="กรอกรหัสพนักงาน 6 หลัก"
+                className="w-full px-4 py-3 rounded-xl border border-[#E5E7EB] focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-center text-2xl tracking-widest font-mono"
                 required
               />
             </div>
@@ -298,7 +398,7 @@ export default function App() {
               type="submit"
               className="w-full bg-[#9333EA] text-white py-3 rounded-xl font-bold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95 flex items-center justify-center gap-2"
             >
-              เข้าสู่ระบบ
+              ยืนยัน
             </button>
           </form>
 
@@ -349,11 +449,11 @@ export default function App() {
         <div className="p-4 border-t border-[#E5E7EB]">
           <div className="bg-[#F3F4F6] p-4 rounded-2xl flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-[#9333EA] font-bold text-sm shadow-sm">
-              46
+              {employeeId.slice(-2)}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-[#6B7280] font-medium uppercase tracking-wider">ผู้ใช้งาน</p>
-              <p className="text-sm font-semibold truncate">ID: 654646</p>
+              <p className="text-sm font-semibold truncate">ID: {employeeId}</p>
             </div>
           </div>
           <button 
@@ -491,33 +591,45 @@ export default function App() {
                 />
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">หน่วยงาน</label>
-                  <select 
-                    className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    value={unitFilter}
-                    onChange={(e) => setUnitFilter(e.target.value)}
-                  >
-                    <option>ทุกหน่วยงาน</option>
-                    {UNITS.map(u => <option key={u}>{u}</option>)}
-                  </select>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">หน่วยงาน</label>
+                    <select 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={unitFilter}
+                      onChange={(e) => setUnitFilter(e.target.value)}
+                    >
+                      <option>ทุกหน่วยงาน</option>
+                      {UNITS.map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">สถานะ</label>
+                    <select 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option>ทุกสถานะ</option>
+                      <option>รอดำเนินการ</option>
+                      <option>ก่อนเวลา</option>
+                      <option>ตรงเวลา</option>
+                      <option>ล่าช้า</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">จัดกลุ่มตาม</label>
+                    <select 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={groupBy}
+                      onChange={(e) => setGroupBy(e.target.value as any)}
+                    >
+                      <option value="none">ไม่จัดกลุ่ม</option>
+                      <option value="unit">หน่วยงาน</option>
+                      <option value="status">สถานะ</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">สถานะ</label>
-                  <select 
-                    className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                  >
-                    <option>ทุกสถานะ</option>
-                    <option>รอดำเนินการ</option>
-                    <option>ก่อนเวลา</option>
-                    <option>ตรงเวลา</option>
-                    <option>ล่าช้า</option>
-                  </select>
-                </div>
-              </div>
             </div>
 
             {/* Table */}
@@ -525,74 +637,96 @@ export default function App() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F9FAFB] text-[#6B7280] text-xs font-bold uppercase tracking-wider">
-                    <th className="px-6 py-4">ชื่องาน / หน่วยงาน</th>
-                    <th className="px-6 py-4">ผู้รับผิดชอบ / ความถี่</th>
-                    <th className="px-6 py-4">กำหนดเสร็จ</th>
-                    <th className="px-6 py-4">ทำเสร็จจริง</th>
-                    <th className="px-6 py-4">ช้า/เร็ว (วัน)</th>
+                    <th className="px-6 py-4">ชื่องาน / ประเภท</th>
+                    <th className="px-6 py-4">หน่วยงาน / ความสำคัญ</th>
+                    <th className="px-6 py-4">ความถี่ / กำหนดเสร็จ</th>
+                    <th className="px-6 py-4">ขั้นตอนการดำเนินงาน</th>
                     <th className="px-6 py-4 text-center">สถานะ</th>
                     <th className="px-6 py-4 text-right">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E7EB]">
                   {loading ? (
-                    <tr><td colSpan={7} className="text-center py-20 text-[#6B7280]">กำลังโหลดข้อมูล...</td></tr>
-                  ) : filteredTasks.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-20 text-[#6B7280]">ไม่พบข้อมูลรายการงาน</td></tr>
-                  ) : filteredTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
-                      <td className="px-6 py-5">
-                        <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
-                        <p className="text-xs text-[#6B7280] mt-1">{task.unit}</p>
-                      </td>
-                      <td className="px-6 py-5">
-                        <p className="font-medium">{task.responsible}</p>
-                        <p className="text-xs text-[#6B7280] mt-1">{task.frequency}</p>
-                      </td>
-                      <td className="px-6 py-5 text-sm font-medium">
-                        {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
-                      </td>
-                      <td className="px-6 py-5 text-sm font-medium">
-                        {task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-'}
-                      </td>
-                      <td className="px-6 py-5 text-sm font-bold">
-                        <span className={cn(
-                          Number(task.delayDays) > 0 ? "text-red-500" : 
-                          Number(task.delayDays) < 0 ? "text-emerald-500" : "text-blue-500"
-                        )}>
-                          {task.delayDays || '0'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex justify-center">
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                            task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                            task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
-                            "bg-amber-50 text-amber-600 border-amber-100"
-                          )}>
-                            {task.status}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
-                            className="p-2 text-[#6B7280] hover:text-[#9333EA] hover:bg-purple-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTask(task.id)}
-                            className="p-2 text-[#6B7280] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <tr><td colSpan={6} className="text-center py-20 text-[#6B7280]">กำลังโหลดข้อมูล...</td></tr>
+                  ) : Object.keys(groupedTasks).length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-20 text-[#6B7280]">ไม่พบข้อมูลรายการงาน</td></tr>
+                  ) : (Object.entries(groupedTasks) as [string, Task[]][]).map(([groupName, groupTasks]) => (
+                    <React.Fragment key={groupName}>
+                      {groupBy !== 'none' && (
+                        <tr className="bg-[#F3F4F6]">
+                          <td colSpan={6} className="px-6 py-2 text-sm font-bold text-[#4B5563]">
+                            {groupName} ({groupTasks.length})
+                          </td>
+                        </tr>
+                      )}
+                      {groupTasks.map((task) => (
+                        <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                          <td className="px-6 py-5">
+                            <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
+                            <p className="text-[10px] text-[#6B7280] mt-1 uppercase font-medium">{task.taskType}</p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-xs font-medium text-[#4B5563] truncate max-w-[150px]">{task.unit}</p>
+                            <div className="mt-1">
+                              {PRIORITIES.find(p => p.label === task.priority) && (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold" 
+                                      style={{ 
+                                        backgroundColor: PRIORITIES.find(p => p.label === task.priority)?.bg,
+                                        color: PRIORITIES.find(p => p.label === task.priority)?.color
+                                      }}>
+                                  {task.priority}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-xs font-medium">{task.frequency}</p>
+                            <p className="text-[10px] text-[#6B7280] mt-1">
+                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                            </p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-xs text-[#4B5563] line-clamp-2 italic">{task.progress || '-'}</p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex justify-center">
+                              <span className={cn(
+                                "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                                task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                                "bg-amber-50 text-amber-600 border-amber-100"
+                              )}>
+                                {task.status}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => handleForwardTask(task)}
+                                title="ส่งต่องาน"
+                                className="p-2 text-[#6B7280] hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              >
+                                <ChevronRight size={18} />
+                              </button>
+                              <button 
+                                onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
+                                className="p-2 text-[#6B7280] hover:text-[#9333EA] hover:bg-purple-50 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteTask(task.id)}
+                                className="p-2 text-[#6B7280] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -625,7 +759,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[32px] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-3xl bg-white rounded-[32px] shadow-2xl overflow-hidden"
             >
               <div className="p-8 border-b border-[#E5E7EB] flex justify-between items-center">
                 <div className="flex items-center gap-4">
@@ -645,39 +779,78 @@ export default function App() {
               <form onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                handleSaveTask(Object.fromEntries(formData.entries()));
-              }} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                    <ListTodo size={14} /> ชื่องาน
-                  </label>
-                  <input 
-                    name="taskName"
-                    defaultValue={editingTask?.taskName}
-                    required
-                    placeholder="เช่น ตรวจสอบระบบไฟฟ้าประจำเดือน..."
-                    className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                  />
+                const data = Object.fromEntries(formData.entries());
+                
+                // Collect multi-select units
+                const selectedUnits = Array.from(e.currentTarget.querySelectorAll('input[name="unit"]:checked')).map((el: any) => el.value);
+                data.unit = selectedUnits.join(', ');
+                
+                handleSaveTask(data);
+              }} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                      <ListTodo size={14} /> ชื่องาน
+                    </label>
+                    <input 
+                      name="taskName"
+                      defaultValue={editingTask?.taskName || initialForwardData?.taskName}
+                      required
+                      placeholder="เช่น ตรวจสอบระบบไฟฟ้าประจำเดือน..."
+                      className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                      ประเภทงาน
+                    </label>
+                    <select 
+                      name="taskType"
+                      defaultValue={editingTask?.taskType || TASK_TYPES[0]}
+                      className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    >
+                      {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                    <Filter size={14} /> หน่วยงานที่รับผิดชอบ
+                    <Filter size={14} /> หน่วยงานที่รับผิดชอบ (เลือกได้หลายหน่วย)
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {UNITS.map(u => (
                       <label key={u} className="relative cursor-pointer group">
                         <input 
-                          type="radio" 
+                          type="checkbox" 
                           name="unit" 
                           value={u} 
-                          defaultChecked={editingTask?.unit === u}
-                          required
+                          defaultChecked={editingTask?.unit?.includes(u)}
                           className="peer sr-only" 
                         />
-                        <div className="p-3 text-center text-sm font-medium border border-[#E5E7EB] rounded-xl peer-checked:bg-[#1A1A1A] peer-checked:text-white peer-checked:border-[#1A1A1A] hover:bg-[#F9FAFB] transition-all">
+                        <div className="p-3 text-center text-xs font-medium border border-[#E5E7EB] rounded-xl peer-checked:bg-[#9333EA] peer-checked:text-white peer-checked:border-[#9333EA] hover:bg-[#F9FAFB] transition-all">
                           {u}
                         </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                    สถานีไฟฟ้า / แผนก (เลือกได้หลายหน่วย)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 border border-[#E5E7EB] rounded-2xl bg-[#F9FAFB]">
+                    {STATIONS.map(s => (
+                      <label key={s} className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          name="unit" 
+                          value={s} 
+                          defaultChecked={editingTask?.unit?.includes(s)}
+                          className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500" 
+                        />
+                        <span className="text-[10px] font-medium leading-tight">{s}</span>
                       </label>
                     ))}
                   </div>
@@ -686,15 +859,30 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                      ผู้รับผิดชอบ
+                      ความสำคัญ
                     </label>
-                    <input 
-                      name="responsible"
-                      defaultValue={editingTask?.responsible}
-                      required
-                      placeholder="ระบุชื่อ-นามสกุล"
-                      className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRIORITIES.map(p => (
+                        <label key={p.id} className="relative cursor-pointer group">
+                          <input 
+                            type="radio" 
+                            name="priority" 
+                            value={p.label} 
+                            defaultChecked={editingTask?.priority === p.label}
+                            required
+                            className="peer sr-only" 
+                          />
+                          <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:border-transparent transition-all"
+                               style={{ 
+                                 backgroundColor: editingTask?.priority === p.label ? p.bg : 'transparent',
+                                 color: editingTask?.priority === p.label ? p.color : '#6B7280',
+                                 borderColor: editingTask?.priority === p.label ? p.color : '#E5E7EB'
+                               }}>
+                            {p.label}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
@@ -705,6 +893,7 @@ export default function App() {
                       defaultValue={editingTask?.frequency || 'ทุกเดือน'}
                       className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                     >
+                      <option>รายครั้ง</option>
                       <option>ทุกวัน</option>
                       <option>ทุกสัปดาห์</option>
                       <option>ทุกเดือน</option>
@@ -742,12 +931,25 @@ export default function App() {
 
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                    Update ขั้นตอนการดำเนินงานอย่างละเอียด
+                  </label>
+                  <textarea 
+                    name="progress"
+                    defaultValue={editingTask?.progress || initialForwardData?.progress}
+                    rows={3}
+                    placeholder="ระบุขั้นตอนการดำเนินงานปัจจุบัน..."
+                    className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
                     หมายเหตุ
                   </label>
                   <textarea 
                     name="remarks"
-                    defaultValue={editingTask?.remarks}
-                    rows={3}
+                    defaultValue={editingTask?.remarks || initialForwardData?.remarks}
+                    rows={2}
                     placeholder="ระบุข้อมูลเพิ่มเติม..."
                     className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none"
                   />
@@ -765,7 +967,7 @@ export default function App() {
                     type="submit"
                     className="flex-[2] py-4 bg-[#1A1A1A] text-white font-bold rounded-2xl shadow-xl shadow-gray-200 hover:bg-black transition-all active:scale-95"
                   >
-                    ยืนยันการส่งต่อ / บันทึก
+                    {editingTask ? 'บันทึกการแก้ไข' : 'ยืนยันการส่งต่อ / บันทึก'}
                   </button>
                 </div>
               </form>

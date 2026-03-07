@@ -145,7 +145,7 @@ async function getDoc() {
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "วันที่สร้าง"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ความสำคัญ", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "วันที่สร้าง"];
       const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
@@ -155,6 +155,11 @@ async function getDoc() {
       } else {
         try {
           await taskSheet.loadHeaderRow();
+          const currentHeaders = taskSheet.headerValues;
+          const missingHeaders = taskHeaders.filter(h => !currentHeaders.includes(h));
+          if (missingHeaders.length > 0) {
+            await taskSheet.setHeaderRow(taskHeaders);
+          }
         } catch (e) {
           await taskSheet.setHeaderRow(taskHeaders);
         }
@@ -167,6 +172,11 @@ async function getDoc() {
       } else {
         try {
           await logSheet.loadHeaderRow();
+          const currentHeaders = logSheet.headerValues;
+          const missingHeaders = logHeaders.filter(h => !currentHeaders.includes(h));
+          if (missingHeaders.length > 0) {
+            await logSheet.setHeaderRow(logHeaders);
+          }
         } catch (e) {
           await logSheet.setHeaderRow(logHeaders);
         }
@@ -193,6 +203,9 @@ app.get("/api/tasks", async (req, res) => {
       unit: row.get("หน่วยงาน"),
       responsible: row.get("ผู้รับผิดชอบ"),
       frequency: row.get("ความถี่"),
+      priority: row.get("ความสำคัญ"),
+      taskType: row.get("ประเภทงาน"),
+      progress: row.get("ขั้นตอนการดำเนินงาน"),
       deadline: row.get("กำหนดแล้วเสร็จ"),
       actualCompletion: row.get("ทำเสร็จจริง"),
       delayDays: row.get("ล่าช้า (วัน)"),
@@ -218,6 +231,9 @@ app.post("/api/tasks", async (req, res) => {
       "หน่วยงาน": req.body.unit,
       "ผู้รับผิดชอบ": req.body.responsible,
       "ความถี่": req.body.frequency,
+      "ความสำคัญ": req.body.priority,
+      "ประเภทงาน": req.body.taskType,
+      "ขั้นตอนการดำเนินงาน": req.body.progress,
       "กำหนดแล้วเสร็จ": req.body.deadline,
       "ทำเสร็จจริง": req.body.actualCompletion,
       "ล่าช้า (วัน)": req.body.delayDays,
@@ -238,13 +254,15 @@ app.post("/api/tasks", async (req, res) => {
       });
     }
 
-    // ส่งกลับในรูปแบบที่ Frontend เข้าใจ
     res.json({
       id: newTask["รหัส"],
       taskName: newTask["ชื่องาน"],
       unit: newTask["หน่วยงาน"],
       responsible: newTask["ผู้รับผิดชอบ"],
       frequency: newTask["ความถี่"],
+      priority: newTask["ความสำคัญ"],
+      taskType: newTask["ประเภทงาน"],
+      progress: newTask["ขั้นตอนการดำเนินงาน"],
       deadline: newTask["กำหนดแล้วเสร็จ"],
       actualCompletion: newTask["ทำเสร็จจริง"],
       delayDays: newTask["ล่าช้า (วัน)"],
@@ -271,6 +289,9 @@ app.put("/api/tasks/:id", async (req, res) => {
         unit: "หน่วยงาน",
         responsible: "ผู้รับผิดชอบ",
         frequency: "ความถี่",
+        priority: "ความสำคัญ",
+        taskType: "ประเภทงาน",
+        progress: "ขั้นตอนการดำเนินงาน",
         deadline: "กำหนดแล้วเสร็จ",
         actualCompletion: "ทำเสร็จจริง",
         delayDays: "ล่าช้า (วัน)",
