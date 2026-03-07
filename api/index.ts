@@ -148,14 +148,29 @@ async function getDoc() {
       const taskHeaders = ["id", "taskName", "unit", "responsible", "frequency", "deadline", "actualCompletion", "delayDays", "status", "remarks", "createdAt"];
       const logHeaders = ["timestamp", "userEmail", "action", "details"];
 
+      // ตรวจสอบและจัดการแผ่นงาน Tasks
       let taskSheet = doc.sheetsByTitle["Tasks"];
       if (!taskSheet) {
-        await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
+        taskSheet = await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
+      } else {
+        // ถ้ามีแผ่นงานอยู่แล้วแต่ไม่มีหัวตาราง ให้ใส่หัวตารางให้
+        try {
+          await taskSheet.loadHeaderRow();
+        } catch (e) {
+          await taskSheet.setHeaderRow(taskHeaders);
+        }
       }
 
+      // ตรวจสอบและจัดการแผ่นงาน Logs
       let logSheet = doc.sheetsByTitle["Logs"];
       if (!logSheet) {
-        await doc.addSheet({ title: "Logs", headerValues: logHeaders });
+        logSheet = await doc.addSheet({ title: "Logs", headerValues: logHeaders });
+      } else {
+        try {
+          await logSheet.loadHeaderRow();
+        } catch (e) {
+          await logSheet.setHeaderRow(logHeaders);
+        }
       }
       isInitialized = true;
     }
