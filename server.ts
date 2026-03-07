@@ -20,44 +20,52 @@ function formatPrivateKey(key: string | undefined) {
   
   let k = key.trim();
 
-  // 1. กรณีผู้ใช้เผลอก๊อปปี้ไฟล์ JSON ทั้งไฟล์มาวาง
+  // 1. กรณีเป็น JSON ทั้งไฟล์
   if (k.startsWith('{')) {
     try {
       const parsed = JSON.parse(k);
-      k = parsed.private_key || k;
+      if (parsed.private_key) k = parsed.private_key;
     } catch (e) { /* ignore */ }
   }
 
-  // 2. ลบเครื่องหมายคำพูดที่อาจติดมาที่หัวและท้าย
-  k = k.replace(/^["']|["']$/g, "");
+  // 2. ลบเครื่องหมายคำพูดและจัดการตัวอักษรขึ้นบรรทัดใหม่
+  k = k.replace(/^["']|["']$/g, "") // ลบ " หรือ ' ที่หัวท้าย
+       .replace(/\\n/g, '\n')       // แปลง \n เป็นบรรทัดใหม่
+       .replace(/\\r/g, '');        // ลบ \r ออก
 
-  // 3. แปลง \n ที่เป็นตัวอักษรให้เป็นบรรทัดใหม่จริง
-  k = k.replace(/\\n/g, '\n');
-
-  const header = "-----BEGIN PRIVATE KEY-----";
-  const footer = "-----END PRIVATE KEY-----";
+  const beginMarker = "-----BEGIN PRIVATE KEY-----";
+  const endMarker = "-----END PRIVATE KEY-----";
   
-  // 4. ดึงเฉพาะส่วน Base64 ออกมา
-  let base64 = k;
-  if (k.includes(header)) {
-    const parts = k.split(header);
-    if (parts.length > 1) {
-      const afterHeader = parts[1].split(footer);
-      base64 = afterHeader[0];
-    }
+  // 3. ดึงเฉพาะส่วนเนื้อหา Base64 ออกมา
+  let base64Content = k;
+  if (k.includes(beginMarker)) {
+    const start = k.indexOf(beginMarker) + beginMarker.length;
+    const end = k.indexOf(endMarker);
+    base64Content = end !== -1 ? k.substring(start, end) : k.substring(start);
   }
-  
-  // 5. ล้างทุกอย่างที่ไม่ใช่ตัวอักษร Base64 (A-Z, a-z, 0-9, +, /, =)
-  base64 = base64.replace(/[^A-Za-z0-9+/=]/g, '');
-  
-  // 6. จัดรูปแบบใหม่ให้เป็น PEM ที่ถูกต้อง (64 ตัวอักษรต่อบรรทัด)
-  const matches = base64.match(/.{1,64}/g);
-  const formattedCore = matches ? matches.join("\n") : base64;
 
-  return `${header}\n${formattedCore}\n${footer}`;
+  // 4. ล้างทุกอย่างที่ไม่ใช่ Base64 (ป้องกันช่องว่างหรือตัวอักษรแปลกปลอมที่ทำให้ ASN.1 พัง)
+  const cleanBase64 = base64Content.replace(/[^A-Za-z0-9+/=]/g, '');
+
+  // 5. จัดรูปแบบใหม่: 64 ตัวอักษรต่อบรรทัด (มาตรฐาน PEM)
+  const rows = cleanBase64.match(/.{1,64}/g);
+  const formattedBase64 = rows ? rows.join('\n') : cleanBase64;
+
+  // 6. ประกอบกลับเป็น PEM ที่สมบูรณ์
+  const finalKey = `${beginMarker}\n${formattedBase64}\n${endMarker}`;
+  
+  // Debug (แสดงเฉพาะโครงสร้างเบื้องต้นเพื่อความปลอดภัย)
+  console.log("Key Formatted Successfully:");
+  console.log("- Base64 Start:", cleanBase64.substring(0, 10) + "...");
+  console.log("- Total Lines:", finalKey.split('\n').length);
+  
+  return finalKey;
 }
 
-const PRIVATE_KEY = formatPrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+// รองรับทั้งชื่อตัวแปรแบบสั้นและแบบเต็มตามที่ปรากฏในรูป Vercel
+const PRIVATE_KEY = formatPrivateKey(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY);
+
+let isInitialized = false;
 
 // Initialize Google Sheets
 async function getDoc() {
@@ -71,49 +79,36 @@ async function getDoc() {
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    // Debug: ตรวจสอบรูปแบบ Key เบื้องต้น (ไม่แสดงค่าจริง)
-    if (PRIVATE_KEY) {
-      console.log("Private Key Format Check:");
-      console.log("- Starts with Header:", PRIVATE_KEY.startsWith("-----BEGIN PRIVATE KEY-----"));
-      console.log("- Ends with Footer:", PRIVATE_KEY.endsWith("-----END PRIVATE KEY-----"));
-      console.log("- Length:", PRIVATE_KEY.length);
-      console.log("- Number of lines:", PRIVATE_KEY.split('\n').length);
-    }
-
     const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
+
+    // ตรวจสอบแผ่นงานในครั้งแรกที่เรียกใช้
+    if (!isInitialized) {
+      const taskHeaders = ["id", "taskName", "unit", "responsible", "frequency", "deadline", "actualCompletion", "delayDays", "status", "remarks", "createdAt"];
+      const logHeaders = ["timestamp", "userEmail", "action", "details"];
+
+      // Check Tasks Sheet
+      let taskSheet = doc.sheetsByTitle["Tasks"];
+      if (!taskSheet) {
+        await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
+      }
+
+      // Check Logs Sheet
+      let logSheet = doc.sheetsByTitle["Logs"];
+      if (!logSheet) {
+        await doc.addSheet({ title: "Logs", headerValues: logHeaders });
+      }
+      isInitialized = true;
+    }
+
     return doc;
   } catch (error: any) {
     console.error("Google Auth Error Details:", error);
-    throw new Error("การยืนยันตัวตนล้มเหลว: " + (error.message.includes("unsupported") ? "รูปแบบ Private Key ไม่ถูกต้อง" : error.message));
-  }
-}
-
-// Ensure sheets exist with correct headers
-async function ensureSheets() {
-  try {
-    const doc = await getDoc();
-    const taskHeaders = ["id", "taskName", "unit", "responsible", "frequency", "deadline", "actualCompletion", "delayDays", "status", "remarks", "createdAt"];
-    const logHeaders = ["timestamp", "userEmail", "action", "details"];
-
-    // Check Tasks Sheet
-    let taskSheet = doc.sheetsByTitle["Tasks"];
-    if (!taskSheet) {
-      taskSheet = await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
-    } else {
-      await taskSheet.setHeaderRow(taskHeaders);
+    let errorMessage = error.message;
+    if (errorMessage.includes("unsupported") || errorMessage.includes("asn1")) {
+      errorMessage = "รูปแบบ Private Key ไม่ถูกต้อง (ASN.1/PEM Error)";
     }
-
-    // Check Logs Sheet
-    let logSheet = doc.sheetsByTitle["Logs"];
-    if (!logSheet) {
-      logSheet = await doc.addSheet({ title: "Logs", headerValues: logHeaders });
-    } else {
-      await logSheet.setHeaderRow(logHeaders);
-    }
-    console.log("Google Sheets initialized successfully.");
-  } catch (error) {
-    console.error("Error ensuring sheets:", error);
+    throw new Error("การยืนยันตัวตนล้มเหลว: " + errorMessage);
   }
 }
 
@@ -262,8 +257,6 @@ app.post("/api/logs", async (req, res) => {
 });
 
 async function startServer() {
-  await ensureSheets();
-
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -282,4 +275,12 @@ async function startServer() {
   });
 }
 
-startServer();
+// Export for Vercel
+export default app;
+
+if (process.env.NODE_ENV !== "production") {
+  startServer();
+} else if (!process.env.VERCEL) {
+  // Run startServer if in production but not on Vercel (e.g., standard VPS)
+  startServer();
+}

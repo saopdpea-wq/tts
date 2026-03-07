@@ -70,21 +70,45 @@ const STATUS_COLORS = {
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks'>('dashboard');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   
+  // Login state
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [unitFilter, setUnitFilter] = useState('ทุกหน่วยงาน');
   const [statusFilter, setStatusFilter] = useState('ทุกสถานะ');
 
   useEffect(() => {
-    fetchTasks();
-    logAccess();
-  }, []);
+    if (isAuthenticated) {
+      fetchTasks();
+      logAccess();
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple password check - in a real app this would be more secure
+    if (password === '1234') {
+      setIsAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setTasks([]);
+    setPassword('');
+  };
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -216,6 +240,60 @@ export default function App() {
     { name: 'รอดำเนินการ', value: stats.pending, color: STATUS_COLORS['รอดำเนินการ'] },
   ].filter(d => d.value > 0);
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-8 rounded-3xl shadow-xl border border-[#E5E7EB] w-full max-w-md"
+        >
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-4">
+              <LayoutDashboard size={32} />
+            </div>
+            <h1 className="text-2xl font-bold text-[#1A1A1A]">เข้าสู่ระบบจัดการงาน</h1>
+            <p className="text-[#6B7280] text-center mt-2">กรุณาใส่รหัสผ่านเพื่อเข้าใช้งานระบบและเชื่อมต่อ Google Sheets</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-[#374151] mb-2">รหัสผ่าน</label>
+              <input 
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="กรอกรหัสผ่าน (1234)"
+                className="w-full px-4 py-3 rounded-xl border border-[#E5E7EB] focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                required
+              />
+            </div>
+
+            {loginError && (
+              <p className="text-red-500 text-sm font-medium flex items-center gap-2">
+                <AlertCircle size={16} />
+                {loginError}
+              </p>
+            )}
+
+            <button 
+              type="submit"
+              className="w-full bg-[#9333EA] text-white py-3 rounded-xl font-bold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              เข้าสู่ระบบ
+            </button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-[#F3F4F6] text-center">
+            <p className="text-xs text-[#9CA3AF]">
+              ระบบจะเชื่อมต่อ Google Sheets อัตโนมัติเมื่อเข้าสู่ระบบสำเร็จ
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-[#F8F9FE] font-sans text-[#1A1A1A]">
       {/* Sidebar */}
@@ -260,7 +338,10 @@ export default function App() {
               <p className="text-sm font-semibold truncate">ID: 654646</p>
             </div>
           </div>
-          <button className="w-full mt-4 flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors font-medium">
+          <button 
+            onClick={handleLogout}
+            className="w-full mt-4 flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-colors font-medium"
+          >
             <LogOut size={20} />
             <span>ออกจากระบบ</span>
           </button>
