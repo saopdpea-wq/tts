@@ -1,6 +1,9 @@
 import express from "express";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
+import { google } from "googleapis";
+import multer from "multer";
+import { Readable } from "stream";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -14,9 +17,13 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json());
 
+// Configure Multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
 const PORT = 3000;
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const PARENT_FOLDER_ID = '1-VvUrx8YftGdo37O9masWg3NXEImMoeX';
 
 // ฟังก์ชันสำหรับล้างค่าและจัดรูปแบบ Private Key ให้ถูกต้องตามมาตรฐาน PEM
 function formatPrivateKey(key: string | undefined) {
@@ -138,14 +145,17 @@ async function getDoc() {
     const serviceAccountAuth = new JWT({
       email: CLIENT_EMAIL,
       key: PRIVATE_KEY,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+      ],
     });
 
     const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ความสำคัญ", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "วันที่สร้าง"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ความสำคัญ", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
       const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
@@ -211,6 +221,8 @@ app.get("/api/tasks", async (req, res) => {
       delayDays: row.get("ล่าช้า (วัน)"),
       status: row.get("สถานะ"),
       remarks: row.get("หมายเหตุ"),
+      attachments: row.get("ไฟล์แนบ"),
+      groupId: row.get("รหัสกลุ่มงาน"),
       createdAt: row.get("วันที่สร้าง"),
     }));
     res.json(tasks);
@@ -225,8 +237,12 @@ app.post("/api/tasks", async (req, res) => {
     const sheet = doc.sheetsByTitle["Tasks"];
     if (!sheet) return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks'" });
 
+    const taskId = Date.now().toString();
+    const thaiTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+    const createdAt = new Date(thaiTime).toISOString();
+
     const newTask = {
-      "รหัส": Date.now().toString(),
+      "รหัส": taskId,
       "ชื่องาน": req.body.taskName,
       "หน่วยงาน": req.body.unit,
       "ผู้รับผิดชอบ": req.body.responsible,
@@ -239,7 +255,9 @@ app.post("/api/tasks", async (req, res) => {
       "ล่าช้า (วัน)": req.body.delayDays,
       "สถานะ": req.body.status,
       "หมายเหตุ": req.body.remarks,
-      "วันที่สร้าง": new Date().toISOString(),
+      "ไฟล์แนบ": req.body.attachments,
+      "รหัสกลุ่มงาน": req.body.groupId || taskId,
+      "วันที่สร้าง": createdAt,
     };
     await sheet.addRow(newTask);
     
@@ -247,7 +265,7 @@ app.post("/api/tasks", async (req, res) => {
     if (logSheet) {
       const userEmail = req.headers["x-user-email"];
       await logSheet.addRow({
-        "วันเวลา": new Date().toISOString(),
+        "วันเวลา": createdAt,
         "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
         "การกระทำ": "CREATE_TASK",
         "รายละเอียด": JSON.stringify(newTask),
@@ -268,6 +286,8 @@ app.post("/api/tasks", async (req, res) => {
       delayDays: newTask["ล่าช้า (วัน)"],
       status: newTask["สถานะ"],
       remarks: newTask["หมายเหตุ"],
+      attachments: newTask["ไฟล์แนบ"],
+      groupId: newTask["รหัสกลุ่มงาน"],
       createdAt: newTask["วันที่สร้าง"],
     });
   } catch (error: any) {
@@ -297,6 +317,8 @@ app.put("/api/tasks/:id", async (req, res) => {
         delayDays: "ล่าช้า (วัน)",
         status: "สถานะ",
         remarks: "หมายเหตุ",
+        attachments: "ไฟล์แนบ",
+        groupId: "รหัสกลุ่มงาน",
       };
 
       Object.keys(req.body).forEach(key => {
@@ -363,8 +385,11 @@ app.post("/api/logs", async (req, res) => {
     const logSheet = doc.sheetsByTitle["Logs"];
     if (logSheet) {
       const userEmail = req.headers["x-user-email"];
+      const thaiTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
+      const createdAt = new Date(thaiTime).toISOString();
+      
       await logSheet.addRow({
-        "วันเวลา": new Date().toISOString(),
+        "วันเวลา": createdAt,
         "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
         "การกระทำ": req.body.action,
         "รายละเอียด": req.body.details || "",
@@ -372,6 +397,89 @@ app.post("/api/logs", async (req, res) => {
     }
     res.json({ success: true });
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Google Drive Upload Endpoint
+app.post("/api/upload", upload.single('file'), async (req: any, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
+    }
+
+    const { taskName } = req.body;
+    if (!taskName) {
+      return res.status(400).json({ error: "ไม่พบชื่อรายการงาน" });
+    }
+
+    const auth = new google.auth.JWT({
+      email: CLIENT_EMAIL,
+      key: PRIVATE_KEY,
+      scopes: ['https://www.googleapis.com/auth/drive']
+    });
+
+    const drive = google.drive({ version: 'v3', auth });
+
+    // 1. Create Folder: [Task Name]_[DDMMYYYY]
+    const now = new Date();
+    const dateStr = `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}`;
+    const folderName = `${taskName}_${dateStr}`;
+
+    // Check if folder already exists under parent
+    const listFolders = await drive.files.list({
+      q: `name = '${folderName}' and '${PARENT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id)',
+    });
+
+    let folderId;
+    if (listFolders.data.files && listFolders.data.files.length > 0) {
+      folderId = listFolders.data.files[0].id;
+    } else {
+      const folderMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [PARENT_FOLDER_ID],
+      };
+      const folder = await drive.files.create({
+        requestBody: folderMetadata,
+        fields: 'id',
+      });
+      folderId = folder.data.id;
+    }
+
+    // 2. Upload File to Folder
+    const fileMetadata = {
+      name: req.file.originalname,
+      parents: [folderId],
+    };
+    const media = {
+      mimeType: req.file.mimetype,
+      body: Readable.from(req.file.buffer),
+    };
+
+    const file = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, webViewLink',
+    });
+
+    // 3. Set permission so anyone with link can view (optional, but often needed)
+    await drive.permissions.create({
+      fileId: file.data.id!,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+
+    res.json({ 
+      fileId: file.data.id, 
+      webViewLink: file.data.webViewLink,
+      folderId: folderId
+    });
+  } catch (error: any) {
+    console.error("Upload error:", error);
     res.status(500).json({ error: error.message });
   }
 });

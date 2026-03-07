@@ -57,6 +57,8 @@ interface Task {
   delayDays: string;
   status: 'ก่อนเวลา' | 'ตรงเวลา' | 'ล่าช้า' | 'รอดำเนินการ';
   remarks: string;
+  attachments?: string; // Google Drive link
+  groupId?: string; // To track linked tasks
   createdAt: string;
 }
 
@@ -152,6 +154,14 @@ export default function App() {
   const [unitFilter, setUnitFilter] = useState('ทุกหน่วยงาน');
   const [statusFilter, setStatusFilter] = useState('ทุกสถานะ');
   const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'status'>('none');
+  
+  // Dashboard Filters
+  const [dashMonth, setDashMonth] = useState<string>(format(new Date(), 'MM'));
+  const [dashYear, setDashYear] = useState<string>(format(new Date(), 'yyyy'));
+
+  // File Upload State
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -221,6 +231,35 @@ export default function App() {
   };
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
+    setUploading(true);
+    let attachments = taskData.attachments || editingTask?.attachments;
+
+    // Handle File Upload if selected
+    if (selectedFile) {
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('taskName', taskData.taskName || '');
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          attachments = uploadData.webViewLink;
+        } else {
+          const errData = await uploadRes.json();
+          throw new Error(errData.error || 'อัปโหลดไฟล์ไม่สำเร็จ');
+        }
+      } catch (err: any) {
+        alert('เกิดข้อผิดพลาดในการอัปโหลดไฟล์: ' + err.message);
+        setUploading(false);
+        return;
+      }
+    }
+
     const method = editingTask ? 'PUT' : 'POST';
     const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/tasks';
     
@@ -246,7 +285,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'x-user-email': employeeId
         },
-        body: JSON.stringify({ ...taskData, status, delayDays })
+        body: JSON.stringify({ ...taskData, status, delayDays, attachments })
       });
       
       let responseData;
@@ -266,10 +305,13 @@ export default function App() {
       await fetchTasks();
       setIsModalOpen(false);
       setEditingTask(null);
+      setSelectedFile(null);
       alert('บันทึกข้อมูลสำเร็จ');
     } catch (err: any) {
       console.error('Failed to save task', err);
-      alert('ไม่สามารถบันทึกได้: ' + err.message + '\n\nกรุณาตรวจสอบ:\n1. ได้ตั้งค่า Environment Variables ใน Vercel ครบถ้วน\n2. ได้แชร์ Sheet ให้ Service Account เป็น Editor แล้ว\n3. รูปแบบ Private Key ถูกต้อง');
+      alert('ไม่สามารถบันทึกได้: ' + err.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -286,7 +328,8 @@ export default function App() {
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       const matchesSearch = task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          task.responsible.toLowerCase().includes(searchQuery.toLowerCase());
+                          task.responsible.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (task.groupId && task.groupId.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.includes(unitFilter);
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
       return matchesSearch && matchesUnit && matchesStatus;
@@ -315,21 +358,54 @@ export default function App() {
     setInitialForwardData({
       taskName: `[ส่งต่อ] ${task.taskName}`,
       progress: task.progress,
-      remarks: `ส่งต่อจาก: ${task.unit}`
+      remarks: `ส่งต่อจาก: ${task.unit}`,
+      groupId: task.groupId || task.id
     });
     setIsModalOpen(true);
   };
 
   // Dashboard Stats
+  const filteredDashTasks = useMemo(() => {
+    return tasks.filter(t => {
+      const d = parseISO(t.createdAt);
+      const matchesMonth = dashMonth === 'all' || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
+      const matchesYear = dashYear === 'all' || d.getFullYear().toString() === dashYear;
+      return matchesMonth && matchesYear;
+    });
+  }, [tasks, dashMonth, dashYear]);
+
   const stats = useMemo(() => {
-    const total = tasks.length;
-    const pending = tasks.filter(t => t.status === 'รอดำเนินการ').length;
-    const early = tasks.filter(t => t.status === 'ก่อนเวลา').length;
-    const onTime = tasks.filter(t => t.status === 'ตรงเวลา').length;
-    const delayed = tasks.filter(t => t.status === 'ล่าช้า').length;
+    const tks = filteredDashTasks;
+    const total = tks.length;
+    const pending = tks.filter(t => t.status === 'รอดำเนินการ').length;
+    const early = tks.filter(t => t.status === 'ก่อนเวลา').length;
+    const onTime = tks.filter(t => t.status === 'ตรงเวลา').length;
+    const delayed = tks.filter(t => t.status === 'ล่าช้า').length;
     
     return { total, pending, early, onTime, delayed };
-  }, [tasks]);
+  }, [filteredDashTasks]);
+
+  const unitPerformance = useMemo(() => {
+    const perf: Record<string, { total: number, completed: number, delayed: number }> = {};
+    
+    filteredDashTasks.forEach(t => {
+      const units = t.unit.split(',').map(u => u.trim());
+      units.forEach(u => {
+        if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
+        perf[u].total += 1;
+        if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
+        if (t.status === 'ล่าช้า') perf[u].delayed += 1;
+      });
+    });
+
+    return Object.entries(perf)
+      .map(([name, data]) => ({
+        name,
+        ...data,
+        rate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [filteredDashTasks]);
 
   const chartData = useMemo(() => {
     const last12Months = eachMonthOfInterval({
@@ -495,6 +571,36 @@ export default function App() {
 
         {activeTab === 'dashboard' ? (
           <div className="space-y-8">
+            {/* Dashboard Filters */}
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#E5E7EB] flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar size={18} className="text-[#6B7280]" />
+                <span className="text-sm font-bold text-[#4B5563]">ช่วงเวลา:</span>
+              </div>
+              <select 
+                value={dashMonth}
+                onChange={(e) => setDashMonth(e.target.value)}
+                className="p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                <option value="all">ทุกเดือน</option>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const m = (i + 1).toString().padStart(2, '0');
+                  return <option key={m} value={m}>{format(new Date(2024, i, 1), 'MMMM', { locale: th })}</option>;
+                })}
+              </select>
+              <select 
+                value={dashYear}
+                onChange={(e) => setDashYear(e.target.value)}
+                className="p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                <option value="all">ทุกปี</option>
+                {Array.from({ length: 5 }, (_, i) => {
+                  const y = (new Date().getFullYear() - i).toString();
+                  return <option key={y} value={y}>{parseInt(y) + 543}</option>;
+                })}
+              </select>
+            </div>
+
             {/* Stats Grid */}
             <div className="grid grid-cols-5 gap-6">
               <StatCard icon={<TrendingUp />} label="งานทั้งหมด" value={stats.total} unit="รายการ" color="purple" />
@@ -573,6 +679,49 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Unit Performance Section */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#E5E7EB]">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">ประสิทธิภาพรายหน่วยงาน</h3>
+                    <p className="text-sm text-[#6B7280]">จำนวนงานและอัตราการดำเนินการสำเร็จ</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {unitPerformance.map((unit) => (
+                  <div key={unit.name} className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] hover:border-purple-200 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="font-bold text-sm">{unit.name}</span>
+                      <span className={cn(
+                        "text-[10px] font-black px-2 py-0.5 rounded-full",
+                        unit.rate >= 80 ? "bg-emerald-100 text-emerald-700" :
+                        unit.rate >= 50 ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+                      )}>
+                        {unit.rate}% สำเร็จ
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[10px] text-[#6B7280] font-bold uppercase tracking-wider">
+                        <span>งานทั้งหมด: {unit.total}</span>
+                        <span className="text-red-500">ล่าช้า: {unit.delayed}</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-[#9333EA] transition-all duration-500" 
+                          style={{ width: `${unit.rate}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -663,7 +812,14 @@ export default function App() {
                         <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
                           <td className="px-6 py-5">
                             <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
-                            <p className="text-[10px] text-[#6B7280] mt-1 uppercase font-medium">{task.taskType}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[10px] text-[#6B7280] uppercase font-medium">{task.taskType}</p>
+                              {task.groupId && (
+                                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">
+                                  Group: {task.groupId.slice(-6)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium text-[#4B5563] truncate max-w-[150px]">{task.unit}</p>
@@ -687,6 +843,16 @@ export default function App() {
                           </td>
                           <td className="px-6 py-5">
                             <p className="text-xs text-[#4B5563] line-clamp-2 italic">{task.progress || '-'}</p>
+                            {task.attachments && (
+                              <a 
+                                href={task.attachments} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-purple-600 hover:underline"
+                              >
+                                <Plus size={10} /> ดูไฟล์แนบ
+                              </a>
+                            )}
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex justify-center">
@@ -799,6 +965,7 @@ export default function App() {
                       placeholder="เช่น ตรวจสอบระบบไฟฟ้าประจำเดือน..."
                       className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                     />
+                    <input type="hidden" name="groupId" defaultValue={editingTask?.groupId || initialForwardData?.groupId} />
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
@@ -955,19 +1122,65 @@ export default function App() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                    เพิ่มไฟล์ที่เกี่ยวข้อง (อัปโหลดเข้า Google Drive)
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="file"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label 
+                      htmlFor="file-upload"
+                      className="flex items-center justify-center gap-3 w-full p-6 border-2 border-dashed border-[#E5E7EB] rounded-2xl bg-[#F9FAFB] cursor-pointer hover:bg-[#F3F4F6] hover:border-purple-300 transition-all"
+                    >
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-[#6B7280]">
+                        <Plus size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-bold text-[#1A1A1A]">
+                          {selectedFile ? selectedFile.name : 'คลิกเพื่อเลือกไฟล์'}
+                        </p>
+                        <p className="text-xs text-[#6B7280]">
+                          {selectedFile ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : 'รองรับไฟล์เอกสารและรูปภาพ'}
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                  {editingTask?.attachments && !selectedFile && (
+                    <p className="text-[10px] text-emerald-600 font-bold">
+                      ✓ มีไฟล์แนบเดิมอยู่แล้ว: <a href={editingTask.attachments} target="_blank" rel="noreferrer" className="underline">ดูไฟล์</a>
+                    </p>
+                  )}
+                </div>
+
                 <div className="pt-4 flex gap-4">
                   <button 
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => { setIsModalOpen(false); setSelectedFile(null); }}
                     className="flex-1 py-4 text-[#6B7280] font-bold hover:bg-[#F3F4F6] rounded-2xl transition-colors"
                   >
                     ยกเลิก
                   </button>
                   <button 
                     type="submit"
-                    className="flex-[2] py-4 bg-[#1A1A1A] text-white font-bold rounded-2xl shadow-xl shadow-gray-200 hover:bg-black transition-all active:scale-95"
+                    disabled={uploading}
+                    className={cn(
+                      "flex-[2] py-4 text-white font-bold rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2",
+                      uploading ? "bg-gray-400 cursor-not-allowed" : "bg-[#1A1A1A] shadow-gray-200 hover:bg-black"
+                    )}
                   >
-                    {editingTask ? 'บันทึกการแก้ไข' : 'ยืนยันการส่งต่อ / บันทึก'}
+                    {uploading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        กำลังประมวลผล...
+                      </>
+                    ) : (
+                      editingTask ? 'บันทึกการแก้ไข' : 'ยืนยันการส่งต่อ / บันทึก'
+                    )}
                   </button>
                 </div>
               </form>
