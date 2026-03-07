@@ -116,10 +116,10 @@ const STATIONS = [
 ];
 
 const PRIORITIES = [
-  { id: '1', label: 'สำคัญและเร่งด่วน (ทำทันที)', color: '#ef4444', bg: '#fee2e2' },
-  { id: '2', label: 'สำคัญแต่ไม่เร่งด่วน (วางแผนทำ)', color: '#f59e0b', bg: '#fef3c7' },
-  { id: '3', label: 'ไม่สำคัญแต่เร่งด่วน (มอบหมาย)', color: '#10b981', bg: '#d1fae5' },
-  { id: '4', label: 'ไม่สำคัญและไม่เร่งด่วน (ทำเมื่อว่าง)', color: '#3b82f6', bg: '#dbeafe' }
+  { id: '1', label: '1 สำคัญและเร่งด่วน (ทำทันที)', color: '#ef4444', bg: '#fee2e2' },
+  { id: '2', label: '2 ไม่สำคัญแต่เร่งด่วน (มอบหมาย)', color: '#10b981', bg: '#d1fae5' },
+  { id: '3', label: '3 สำคัญแต่ไม่เร่งด่วน (วางแผนทำ)', color: '#f59e0b', bg: '#fef3c7' },
+  { id: '4', label: '4 ไม่สำคัญและไม่เร่งด่วน (ทำเมื่อว่าง)', color: '#3b82f6', bg: '#dbeafe' }
 ];
 
 const TASK_TYPES = [
@@ -824,11 +824,11 @@ export default function App() {
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium text-[#4B5563] truncate max-w-[150px]">{task.unit}</p>
                             <div className="mt-1">
-                              {PRIORITIES.find(p => p.label === task.priority) && (
+                              {PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority)) && (
                                 <span className="px-2 py-0.5 rounded text-[9px] font-bold" 
                                       style={{ 
-                                        backgroundColor: PRIORITIES.find(p => p.label === task.priority)?.bg,
-                                        color: PRIORITIES.find(p => p.label === task.priority)?.color
+                                        backgroundColor: PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority))?.bg,
+                                        color: PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority))?.color
                                       }}>
                                   {task.priority}
                                 </span>
@@ -1035,15 +1035,15 @@ export default function App() {
                             type="radio" 
                             name="priority" 
                             value={p.label} 
-                            defaultChecked={editingTask?.priority === p.label}
+                            defaultChecked={editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))}
                             required
                             className="peer sr-only" 
                           />
                           <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:border-transparent transition-all"
                                style={{ 
-                                 backgroundColor: editingTask?.priority === p.label ? p.bg : 'transparent',
-                                 color: editingTask?.priority === p.label ? p.color : '#6B7280',
-                                 borderColor: editingTask?.priority === p.label ? p.color : '#E5E7EB'
+                                 backgroundColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.bg : 'transparent',
+                                 color: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#6B7280',
+                                 borderColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#E5E7EB'
                                }}>
                             {p.label}
                           </div>
