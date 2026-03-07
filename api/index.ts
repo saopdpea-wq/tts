@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import { GoogleSpreadsheet } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
@@ -12,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.set('trust proxy', 1); // เพิ่มเพื่อให้ระบุ protocol (https) ได้ถูกต้องบน Vercel
+app.set('trust proxy', 1);
 app.use(express.json());
 
 const PORT = 3000;
@@ -29,7 +28,6 @@ function formatPrivateKey(key: string | undefined) {
   k = k.replace(/^["']|["']$/g, "");
 
   // 2. จัดการเรื่อง \n (สำคัญมากสำหรับ Vercel)
-  // ถ้ามี \n ที่เป็นตัวอักษร ให้แปลงเป็นบรรทัดใหม่จริงๆ
   if (k.includes('\\n')) {
     k = k.replace(/\\n/g, '\n');
   }
@@ -39,30 +37,20 @@ function formatPrivateKey(key: string | undefined) {
   const endMarker = "-----END PRIVATE KEY-----";
 
   if (!k.includes(beginMarker)) {
-    // ถ้าไม่มี Header ให้พยายามจัดรูปแบบใหม่
-    const cleanKey = k.replace(/\s+/g, ''); // ลบช่องว่างทั้งหมด
+    const cleanKey = k.replace(/\s+/g, '');
     k = `${beginMarker}\n${cleanKey}\n${endMarker}`;
   }
 
   return k;
 }
 
-// รองรับทั้งชื่อตัวแปรแบบสั้นและแบบเต็มตามที่ปรากฏในรูป Vercel
 const PRIVATE_KEY = formatPrivateKey(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY);
-
-// เพิ่มส่วน OAuth สำหรับสร้าง Refresh Token
-const oauth2Client = new JWT({
-  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  key: PRIVATE_KEY,
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 // API Routes
 app.get("/api/auth/google", (req, res) => {
-  console.log("GET /api/auth/google - Hit");
   if (!CLIENT_ID || !CLIENT_SECRET) {
     return res.status(400).send("กรุณาตั้งค่า GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน Environment Variables ก่อน");
   }
@@ -80,7 +68,6 @@ app.get("/api/auth/google", (req, res) => {
 });
 
 app.get("/api/auth/google/callback", async (req, res) => {
-  console.log("GET /api/auth/google/callback - Hit");
   const { code } = req.query;
   const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
 
@@ -104,7 +91,6 @@ app.get("/api/auth/google/callback", async (req, res) => {
       return res.send("ไม่ได้รับ Refresh Token (อาจเป็นเพราะคุณเคยอนุญาตไปแล้ว ให้ไปที่ Google Account Settings แล้วลบแอปออกก่อนแล้วลองใหม่)");
     }
 
-    // ส่งหน้า HTML แบบในรูป
     res.send(`
       <html>
         <head>
@@ -144,18 +130,11 @@ app.get("/api/auth/google/callback", async (req, res) => {
 
 let isInitialized = false;
 
-// Initialize Google Sheets
 async function getDoc() {
   if (!SHEET_ID || !CLIENT_EMAIL || !PRIVATE_KEY) {
-    console.error("Missing Env Vars:", { SHEET_ID: !!SHEET_ID, CLIENT_EMAIL: !!CLIENT_EMAIL, PRIVATE_KEY: !!PRIVATE_KEY });
     throw new Error("ไม่พบข้อมูลการเชื่อมต่อ (Missing Environment Variables)");
   }
   try {
-    // Log key format for debugging (safe part only)
-    console.log("Attempting Google Auth with email:", CLIENT_EMAIL);
-    console.log("Key length:", PRIVATE_KEY.length);
-    console.log("Key starts with:", PRIVATE_KEY.substring(0, 30));
-
     const serviceAccountAuth = new JWT({
       email: CLIENT_EMAIL,
       key: PRIVATE_KEY,
@@ -165,18 +144,15 @@ async function getDoc() {
     const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
 
-    // ตรวจสอบแผ่นงานในครั้งแรกที่เรียกใช้
     if (!isInitialized) {
       const taskHeaders = ["id", "taskName", "unit", "responsible", "frequency", "deadline", "actualCompletion", "delayDays", "status", "remarks", "createdAt"];
       const logHeaders = ["timestamp", "userEmail", "action", "details"];
 
-      // Check Tasks Sheet
       let taskSheet = doc.sheetsByTitle["Tasks"];
       if (!taskSheet) {
         await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
       }
 
-      // Check Logs Sheet
       let logSheet = doc.sheetsByTitle["Logs"];
       if (!logSheet) {
         await doc.addSheet({ title: "Logs", headerValues: logHeaders });
@@ -186,28 +162,17 @@ async function getDoc() {
 
     return doc;
   } catch (error: any) {
-    console.error("Google Auth Error Details:", error);
-    let errorMessage = error.message;
-    if (errorMessage.includes("unsupported") || errorMessage.includes("asn1")) {
-      errorMessage = "รูปแบบ Private Key ไม่ถูกต้อง (ASN.1/PEM Error)";
-    }
-    throw new Error("การยืนยันตัวตนล้มเหลว: " + errorMessage);
+    throw new Error("การยืนยันตัวตนล้มเหลว: " + error.message);
   }
 }
 
-// API Routes
 app.get("/api/tasks", async (req, res) => {
   try {
-    console.log("GET /api/tasks - Attempting to fetch tasks");
     const doc = await getDoc();
     const sheet = doc.sheetsByTitle["Tasks"];
-    if (!sheet) {
-      console.error("Sheet 'Tasks' not found");
-      return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks' ใน Google Sheet ของคุณ" });
-    }
+    if (!sheet) return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks'" });
     
     const rows = await sheet.getRows();
-    console.log(`Fetched ${rows.length} rows`);
     const tasks = rows.map(row => ({
       id: row.get("id"),
       taskName: row.get("taskName"),
@@ -229,13 +194,9 @@ app.get("/api/tasks", async (req, res) => {
 
 app.post("/api/tasks", async (req, res) => {
   try {
-    console.log("POST /api/tasks - Attempting to add task");
     const doc = await getDoc();
     const sheet = doc.sheetsByTitle["Tasks"];
-    if (!sheet) {
-      console.error("Sheet 'Tasks' not found");
-      return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks' ใน Google Sheet ของคุณ" });
-    }
+    if (!sheet) return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks'" });
 
     const newTask = {
       ...req.body,
@@ -244,7 +205,6 @@ app.post("/api/tasks", async (req, res) => {
     };
     await sheet.addRow(newTask);
     
-    // Log action
     const logSheet = doc.sheetsByTitle["Logs"];
     if (logSheet) {
       const userEmail = req.headers["x-user-email"];
@@ -276,7 +236,6 @@ app.put("/api/tasks/:id", async (req, res) => {
       });
       await row.save();
 
-      // Log action
       const logSheet = doc.sheetsByTitle["Logs"];
       if (logSheet) {
         const userEmail = req.headers["x-user-email"];
@@ -308,7 +267,6 @@ app.delete("/api/tasks/:id", async (req, res) => {
     if (row) {
       await row.delete();
 
-      // Log action
       const logSheet = doc.sheetsByTitle["Logs"];
       if (logSheet) {
         const userEmail = req.headers["x-user-email"];
@@ -348,34 +306,12 @@ app.post("/api/logs", async (req, res) => {
   }
 });
 
-async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // ใน Vercel static files จะถูกจัดการผ่าน rewrites ใน vercel.json
-    // แต่ถ้าเป็น standard VPS จะใช้ส่วนนี้
-    const distPath = path.join(__dirname, "..", "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
+// Export the Express app as default
+export default app;
 
+// Only start the server if running locally (not on Vercel)
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
-}
-
-// Export for Vercel
-export default app;
-
-if (process.env.NODE_ENV !== "production") {
-  startServer();
-} else if (!process.env.VERCEL) {
-  // Run startServer if in production but not on Vercel (e.g., standard VPS)
-  startServer();
 }
