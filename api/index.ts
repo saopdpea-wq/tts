@@ -145,15 +145,14 @@ async function getDoc() {
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["id", "taskName", "unit", "responsible", "frequency", "deadline", "actualCompletion", "delayDays", "status", "remarks", "createdAt"];
-      const logHeaders = ["timestamp", "userEmail", "action", "details"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "วันที่สร้าง"];
+      const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
       let taskSheet = doc.sheetsByTitle["Tasks"];
       if (!taskSheet) {
         taskSheet = await doc.addSheet({ title: "Tasks", headerValues: taskHeaders });
       } else {
-        // ถ้ามีแผ่นงานอยู่แล้วแต่ไม่มีหัวตาราง ให้ใส่หัวตารางให้
         try {
           await taskSheet.loadHeaderRow();
         } catch (e) {
@@ -189,17 +188,17 @@ app.get("/api/tasks", async (req, res) => {
     
     const rows = await sheet.getRows();
     const tasks = rows.map(row => ({
-      id: row.get("id"),
-      taskName: row.get("taskName"),
-      unit: row.get("unit"),
-      responsible: row.get("responsible"),
-      frequency: row.get("frequency"),
-      deadline: row.get("deadline"),
-      actualCompletion: row.get("actualCompletion"),
-      delayDays: row.get("delayDays"),
-      status: row.get("status"),
-      remarks: row.get("remarks"),
-      createdAt: row.get("createdAt"),
+      id: row.get("รหัส"),
+      taskName: row.get("ชื่องาน"),
+      unit: row.get("หน่วยงาน"),
+      responsible: row.get("ผู้รับผิดชอบ"),
+      frequency: row.get("ความถี่"),
+      deadline: row.get("กำหนดแล้วเสร็จ"),
+      actualCompletion: row.get("ทำเสร็จจริง"),
+      delayDays: row.get("ล่าช้า (วัน)"),
+      status: row.get("สถานะ"),
+      remarks: row.get("หมายเหตุ"),
+      createdAt: row.get("วันที่สร้าง"),
     }));
     res.json(tasks);
   } catch (error: any) {
@@ -214,9 +213,17 @@ app.post("/api/tasks", async (req, res) => {
     if (!sheet) return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks'" });
 
     const newTask = {
-      ...req.body,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
+      "รหัส": Date.now().toString(),
+      "ชื่องาน": req.body.taskName,
+      "หน่วยงาน": req.body.unit,
+      "ผู้รับผิดชอบ": req.body.responsible,
+      "ความถี่": req.body.frequency,
+      "กำหนดแล้วเสร็จ": req.body.deadline,
+      "ทำเสร็จจริง": req.body.actualCompletion,
+      "ล่าช้า (วัน)": req.body.delayDays,
+      "สถานะ": req.body.status,
+      "หมายเหตุ": req.body.remarks,
+      "วันที่สร้าง": new Date().toISOString(),
     };
     await sheet.addRow(newTask);
     
@@ -224,14 +231,27 @@ app.post("/api/tasks", async (req, res) => {
     if (logSheet) {
       const userEmail = req.headers["x-user-email"];
       await logSheet.addRow({
-        timestamp: new Date().toISOString(),
-        userEmail: Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
-        action: "CREATE_TASK",
-        details: JSON.stringify(newTask),
+        "วันเวลา": new Date().toISOString(),
+        "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
+        "การกระทำ": "CREATE_TASK",
+        "รายละเอียด": JSON.stringify(newTask),
       });
     }
 
-    res.json(newTask);
+    // ส่งกลับในรูปแบบที่ Frontend เข้าใจ
+    res.json({
+      id: newTask["รหัส"],
+      taskName: newTask["ชื่องาน"],
+      unit: newTask["หน่วยงาน"],
+      responsible: newTask["ผู้รับผิดชอบ"],
+      frequency: newTask["ความถี่"],
+      deadline: newTask["กำหนดแล้วเสร็จ"],
+      actualCompletion: newTask["ทำเสร็จจริง"],
+      delayDays: newTask["ล่าช้า (วัน)"],
+      status: newTask["สถานะ"],
+      remarks: newTask["หมายเหตุ"],
+      createdAt: newTask["วันที่สร้าง"],
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -244,10 +264,24 @@ app.put("/api/tasks/:id", async (req, res) => {
     if (!sheet) throw new Error("ไม่พบแผ่นงาน 'Tasks'");
 
     const rows = await sheet.getRows();
-    const row = rows.find(r => r.get("id") === req.params.id);
+    const row = rows.find(r => r.get("รหัส") === req.params.id);
     if (row) {
+      const mapping: Record<string, string> = {
+        taskName: "ชื่องาน",
+        unit: "หน่วยงาน",
+        responsible: "ผู้รับผิดชอบ",
+        frequency: "ความถี่",
+        deadline: "กำหนดแล้วเสร็จ",
+        actualCompletion: "ทำเสร็จจริง",
+        delayDays: "ล่าช้า (วัน)",
+        status: "สถานะ",
+        remarks: "หมายเหตุ",
+      };
+
       Object.keys(req.body).forEach(key => {
-        row.set(key, req.body[key]);
+        if (mapping[key]) {
+          row.set(mapping[key], req.body[key]);
+        }
       });
       await row.save();
 
@@ -255,10 +289,10 @@ app.put("/api/tasks/:id", async (req, res) => {
       if (logSheet) {
         const userEmail = req.headers["x-user-email"];
         await logSheet.addRow({
-          timestamp: new Date().toISOString(),
-          userEmail: Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
-          action: "UPDATE_TASK",
-          details: `ID: ${req.params.id}`,
+          "วันเวลา": new Date().toISOString(),
+          "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
+          "การกระทำ": "UPDATE_TASK",
+          "รายละเอียด": `ID: ${req.params.id}`,
         });
       }
 
@@ -278,7 +312,7 @@ app.delete("/api/tasks/:id", async (req, res) => {
     if (!sheet) throw new Error("ไม่พบแผ่นงาน 'Tasks'");
 
     const rows = await sheet.getRows();
-    const row = rows.find(r => r.get("id") === req.params.id);
+    const row = rows.find(r => r.get("รหัส") === req.params.id);
     if (row) {
       await row.delete();
 
@@ -286,10 +320,10 @@ app.delete("/api/tasks/:id", async (req, res) => {
       if (logSheet) {
         const userEmail = req.headers["x-user-email"];
         await logSheet.addRow({
-          timestamp: new Date().toISOString(),
-          userEmail: Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
-          action: "DELETE_TASK",
-          details: `ID: ${req.params.id}`,
+          "วันเวลา": new Date().toISOString(),
+          "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
+          "การกระทำ": "DELETE_TASK",
+          "รายละเอียด": `ID: ${req.params.id}`,
         });
       }
 
@@ -309,10 +343,10 @@ app.post("/api/logs", async (req, res) => {
     if (logSheet) {
       const userEmail = req.headers["x-user-email"];
       await logSheet.addRow({
-        timestamp: new Date().toISOString(),
-        userEmail: Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
-        action: req.body.action,
-        details: req.body.details || "",
+        "วันเวลา": new Date().toISOString(),
+        "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
+        "การกระทำ": req.body.action,
+        "รายละเอียด": req.body.details || "",
       });
     }
     res.json({ success: true });
