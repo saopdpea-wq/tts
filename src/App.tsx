@@ -981,54 +981,75 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                    <Filter size={14} /> หน่วยงานที่รับผิดชอบ (เลือกได้หลายหน่วย)
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {UNITS.map(u => (
-                      <label key={u} className="relative cursor-pointer group">
-                        <input 
-                          type="checkbox" 
-                          name="unit" 
-                          value={u} 
-                          defaultChecked={editingTask?.unit?.includes(u)}
-                          className="peer sr-only" 
-                        />
-                        <div className="p-3 text-center text-xs font-medium border border-[#E5E7EB] rounded-xl peer-checked:bg-[#9333EA] peer-checked:text-white peer-checked:border-[#9333EA] hover:bg-[#F9FAFB] transition-all">
-                          {u}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                      <Filter size={14} /> หน่วยงาน / สถานีไฟฟ้าที่รับผิดชอบ (เลือกได้หลายรายการ)
+                    </label>
+                    <div className="grid grid-cols-4 gap-2 mb-4">
+                      {UNITS.map(u => (
+                        <label key={u} className="relative cursor-pointer group">
+                          <input 
+                            type="checkbox" 
+                            name="unit" 
+                            value={u} 
+                            defaultChecked={editingTask?.unit?.includes(u)}
+                            className="peer sr-only" 
+                          />
+                          <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:bg-[#9333EA] peer-checked:text-white peer-checked:border-[#9333EA] hover:bg-[#F9FAFB] transition-all">
+                            {u}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">สถานีไฟฟ้า / แผนก</span>
+                        <div className="relative w-48">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[#9CA3AF]" size={12} />
+                          <input 
+                            type="text" 
+                            placeholder="ค้นหาสถานี..."
+                            className="w-full pl-7 pr-2 py-1.5 text-[10px] bg-white border border-[#E5E7EB] rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            onChange={(e) => {
+                              const val = e.target.value.toLowerCase();
+                              const items = document.querySelectorAll('.station-item');
+                              items.forEach((item: any) => {
+                                if (item.textContent.toLowerCase().includes(val)) {
+                                  item.style.display = 'flex';
+                                } else {
+                                  item.style.display = 'none';
+                                }
+                              });
+                            }}
+                          />
                         </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                    สถานีไฟฟ้า / แผนก (เลือกได้หลายหน่วย)
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 border border-[#E5E7EB] rounded-2xl bg-[#F9FAFB]">
-                    {STATIONS.map(s => (
-                      <label key={s} className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
-                        <input 
-                          type="checkbox" 
-                          name="unit" 
-                          value={s} 
-                          defaultChecked={editingTask?.unit?.includes(s)}
-                          className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500" 
-                        />
-                        <span className="text-[10px] font-medium leading-tight">{s}</span>
-                      </label>
-                    ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-[#E5E7EB] rounded-2xl bg-[#F9FAFB]">
+                        {STATIONS.map(s => (
+                          <label key={s} className="station-item flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
+                            <input 
+                              type="checkbox" 
+                              name="unit" 
+                              value={s} 
+                              defaultChecked={editingTask?.unit?.includes(s)}
+                              className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500" 
+                            />
+                            <span className="text-[10px] font-medium leading-tight">{s}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                      ความสำคัญ
+                      ความสำคัญของงาน
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-2">
                       {PRIORITIES.map(p => (
                         <label key={p.id} className="relative cursor-pointer group">
                           <input 
@@ -1039,13 +1060,14 @@ export default function App() {
                             required
                             className="peer sr-only" 
                           />
-                          <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:border-transparent transition-all"
+                          <div className="p-4 flex items-center gap-3 border border-[#E5E7EB] rounded-2xl peer-checked:border-transparent transition-all"
                                style={{ 
-                                 backgroundColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.bg : 'transparent',
+                                 backgroundColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.bg : 'white',
                                  color: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#6B7280',
                                  borderColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#E5E7EB'
                                }}>
-                            {p.label}
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                            <span className="text-xs font-bold">{p.label}</span>
                           </div>
                         </label>
                       ))}
