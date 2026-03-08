@@ -17,7 +17,8 @@ import {
   Calendar,
   MoreVertical,
   Edit2,
-  Trash2
+  Trash2,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -143,11 +144,19 @@ export default function App() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [groupQuery, setGroupQuery] = useState('');
   const [unitFilter, setUnitFilter] = useState('ทุกหน่วยงาน');
   const [statusFilter, setStatusFilter] = useState('ทุกสถานะ');
   const [typeFilter, setTypeFilter] = useState('ทุกประเภทงาน');
-  const [deadlineFilter, setDeadlineFilter] = useState('');
-  const [completionFilter, setCompletionFilter] = useState('');
+  
+  // Date Range Filters
+  const [deadlineStart, setDeadlineStart] = useState('');
+  const [deadlineEnd, setDeadlineEnd] = useState('');
+  const [completionStart, setCompletionStart] = useState('');
+  const [completionEnd, setCompletionEnd] = useState('');
+
+  // Drill-down
+  const [selectedUnitDetail, setSelectedUnitDetail] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'status'>('none');
   
   // Dashboard Filters
@@ -365,16 +374,24 @@ export default function App() {
       const matchesSearch = task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           task.responsible.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           task.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (task.groupId && task.groupId.toLowerCase().includes(searchQuery.toLowerCase()));
+                          (task.progress && task.progress.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      const matchesGroup = !groupQuery || (task.groupId && task.groupId.toLowerCase().includes(groupQuery.toLowerCase()));
       const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.includes(unitFilter);
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
       const matchesType = typeFilter === 'ทุกประเภทงาน' || task.taskType === typeFilter;
-      const matchesDeadline = !deadlineFilter || (task.deadline && task.deadline.includes(deadlineFilter));
-      const matchesCompletion = !completionFilter || (task.actualCompletion && task.actualCompletion.includes(completionFilter));
       
-      return matchesSearch && matchesUnit && matchesStatus && matchesType && matchesDeadline && matchesCompletion;
+      // Deadline Range
+      const matchesDeadline = (!deadlineStart || (task.deadline && task.deadline >= deadlineStart)) &&
+                             (!deadlineEnd || (task.deadline && task.deadline <= deadlineEnd));
+      
+      // Completion Range
+      const matchesCompletion = (!completionStart || (task.actualCompletion && task.actualCompletion >= completionStart)) &&
+                               (!completionEnd || (task.actualCompletion && task.actualCompletion <= completionEnd));
+      
+      return matchesSearch && matchesGroup && matchesUnit && matchesStatus && matchesType && matchesDeadline && matchesCompletion;
     });
-  }, [tasks, searchQuery, unitFilter, statusFilter, typeFilter, deadlineFilter, completionFilter]);
+  }, [tasks, searchQuery, groupQuery, unitFilter, statusFilter, typeFilter, deadlineStart, deadlineEnd, completionStart, completionEnd]);
 
   const groupedTasks = useMemo(() => {
     if (groupBy === 'none') return { 'รายการทั้งหมด': filteredTasks };
@@ -738,7 +755,11 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {unitPerformance.map((unit) => (
-                  <div key={unit.name} className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] hover:border-purple-200 transition-colors">
+                  <div 
+                    key={unit.name} 
+                    onClick={() => setSelectedUnitDetail(unit.name)}
+                    className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] hover:border-purple-200 transition-all cursor-pointer hover:shadow-md active:scale-[0.98]"
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <span className="font-bold text-sm">{unit.name}</span>
                       <span className={cn(
@@ -770,15 +791,27 @@ export default function App() {
           <div className="bg-white rounded-3xl shadow-sm border border-[#E5E7EB] overflow-hidden">
             {/* Filters */}
             <div className="p-6 border-b border-[#E5E7EB] space-y-6">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="ค้นหาชื่องาน, ผู้รับผิดชอบ, หน่วยงาน หรือขั้นตอน..."
-                  className="w-full pl-12 pr-4 py-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="ค้นหาชื่องาน, ผู้รับผิดชอบ, หน่วยงาน หรือขั้นตอน..."
+                    className="w-full pl-12 pr-4 py-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="relative">
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9CA3AF]" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="ค้นหา Group ID..."
+                    className="w-full pl-12 pr-4 py-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                    value={groupQuery}
+                    onChange={(e) => setGroupQuery(e.target.value)}
+                  />
+                </div>
               </div>
 
                 <div className="flex flex-wrap gap-4">
@@ -820,24 +853,6 @@ export default function App() {
                     </select>
                   </div>
                   <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">กำหนดแล้วเสร็จ</label>
-                    <input 
-                      type="date"
-                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                      value={deadlineFilter}
-                      onChange={(e) => setDeadlineFilter(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">ทำเสร็จจริง</label>
-                    <input 
-                      type="date"
-                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                      value={completionFilter}
-                      onChange={(e) => setCompletionFilter(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">จัดกลุ่มตาม</label>
                     <select 
                       className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
@@ -848,6 +863,45 @@ export default function App() {
                       <option value="unit">หน่วยงาน</option>
                       <option value="status">สถานะ</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">กำหนดแล้วเสร็จ (ช่วงวันที่)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={deadlineStart}
+                        onChange={(e) => setDeadlineStart(e.target.value)}
+                      />
+                      <span className="text-[#6B7280] font-bold">ถึง</span>
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={deadlineEnd}
+                        onChange={(e) => setDeadlineEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">ทำเสร็จจริง (ช่วงวันที่)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={completionStart}
+                        onChange={(e) => setCompletionStart(e.target.value)}
+                      />
+                      <span className="text-[#6B7280] font-bold">ถึง</span>
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={completionEnd}
+                        onChange={(e) => setCompletionEnd(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
             </div>
@@ -970,6 +1024,98 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Unit Detail Modal */}
+      <AnimatePresence>
+        {selectedUnitDetail && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedUnitDetail(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-5xl bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-8 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">รายละเอียดงาน: {selectedUnitDetail}</h2>
+                    <p className="text-[#6B7280] text-sm">รายการงานทั้งหมดของหน่วยงานนี้</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedUnitDetail(null)} className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                  {['รอดำเนินการ', 'ก่อนเวลา', 'ตรงเวลา', 'ล่าช้า'].map(status => {
+                    const count = tasks.filter(t => t.unit.includes(selectedUnitDetail) && t.status === status).length;
+                    return (
+                      <div key={status} className="p-4 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+                        <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider mb-1">{status}</p>
+                        <p className="text-2xl font-black">{count}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-[#E5E7EB]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] text-[#6B7280] text-[10px] font-bold uppercase tracking-wider">
+                        <th className="px-6 py-4">ชื่องาน</th>
+                        <th className="px-6 py-4">กำหนดเสร็จ</th>
+                        <th className="px-6 py-4">ทำเสร็จจริง</th>
+                        <th className="px-6 py-4 text-center">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E7EB]">
+                      {tasks.filter(t => t.unit.includes(selectedUnitDetail)).map(task => (
+                        <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-sm text-[#1A1A1A]">{task.taskName}</p>
+                            <p className="text-[10px] text-[#6B7280] uppercase">{task.taskType}</p>
+                          </td>
+                          <td className="px-6 py-4 text-xs">
+                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                          </td>
+                          <td className="px-6 py-4 text-xs">
+                            {task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border",
+                                task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                                "bg-amber-50 text-amber-600 border-amber-100"
+                              )}>
+                                {task.status}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Task Modal */}
       <AnimatePresence>
