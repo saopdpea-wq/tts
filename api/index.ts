@@ -236,57 +236,67 @@ app.post("/api/tasks", async (req, res) => {
     const sheet = doc.sheetsByTitle["Tasks"];
     if (!sheet) return res.status(404).json({ error: "ไม่พบแผ่นงานชื่อ 'Tasks'" });
 
-    const taskId = Date.now().toString();
     const thaiTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" });
     const createdAt = new Date(thaiTime).toISOString();
-
-    const newTask = {
-      "รหัส": taskId,
-      "ชื่องาน": req.body.taskName,
-      "หน่วยงาน": req.body.unit,
-      "ผู้รับผิดชอบ": req.body.responsible,
-      "ความถี่": req.body.frequency,
-      "ประเภทงาน": req.body.taskType,
-      "ขั้นตอนการดำเนินงาน": req.body.progress,
-      "กำหนดแล้วเสร็จ": req.body.deadline,
-      "ทำเสร็จจริง": req.body.actualCompletion,
-      "ล่าช้า (วัน)": req.body.delayDays,
-      "สถานะ": req.body.status,
-      "หมายเหตุ": req.body.remarks,
-      "ไฟล์แนบ": req.body.attachments,
-      "รหัสกลุ่มงาน": req.body.groupId || taskId,
-      "วันที่สร้าง": createdAt,
-    };
-    await sheet.addRow(newTask);
-    
     const logSheet = doc.sheetsByTitle["Logs"];
-    if (logSheet) {
-      const userEmail = req.headers["x-user-email"];
-      await logSheet.addRow({
-        "วันเวลา": createdAt,
-        "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
-        "การกระทำ": "CREATE_TASK",
-        "รายละเอียด": JSON.stringify(newTask),
+    const userEmail = req.headers["x-user-email"];
+
+    // Support batch creation if units array is provided
+    const units = Array.isArray(req.body.units) ? req.body.units : [req.body.unit];
+    const baseGroupId = req.body.groupId || `G-${Date.now()}`;
+    const createdTasks = [];
+
+    for (const unit of units) {
+      const taskId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const newTask = {
+        "รหัส": taskId,
+        "ชื่องาน": req.body.taskName,
+        "หน่วยงาน": unit,
+        "ผู้รับผิดชอบ": req.body.responsible,
+        "ความถี่": req.body.frequency,
+        "ประเภทงาน": req.body.taskType,
+        "ขั้นตอนการดำเนินงาน": req.body.progress,
+        "กำหนดแล้วเสร็จ": req.body.deadline,
+        "ทำเสร็จจริง": req.body.actualCompletion,
+        "ล่าช้า (วัน)": req.body.delayDays,
+        "สถานะ": req.body.status,
+        "หมายเหตุ": req.body.remarks,
+        "ไฟล์แนบ": req.body.attachments,
+        "รหัสกลุ่มงาน": baseGroupId,
+        "วันที่สร้าง": createdAt,
+      };
+      
+      await sheet.addRow(newTask);
+      
+      if (logSheet) {
+        await logSheet.addRow({
+          "วันเวลา": createdAt,
+          "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
+          "การกระทำ": "CREATE_TASK",
+          "รายละเอียด": JSON.stringify(newTask),
+        });
+      }
+      
+      createdTasks.push({
+        id: newTask["รหัส"],
+        taskName: newTask["ชื่องาน"],
+        unit: newTask["หน่วยงาน"],
+        responsible: newTask["ผู้รับผิดชอบ"],
+        frequency: newTask["ความถี่"],
+        taskType: newTask["ประเภทงาน"],
+        progress: newTask["ขั้นตอนการดำเนินงาน"],
+        deadline: newTask["กำหนดแล้วเสร็จ"],
+        actualCompletion: newTask["ทำเสร็จจริง"],
+        delayDays: newTask["ล่าช้า (วัน)"],
+        status: newTask["สถานะ"],
+        remarks: newTask["หมายเหตุ"],
+        attachments: newTask["ไฟล์แนบ"],
+        groupId: newTask["รหัสกลุ่มงาน"],
+        createdAt: newTask["วันที่สร้าง"],
       });
     }
 
-    res.json({
-      id: newTask["รหัส"],
-      taskName: newTask["ชื่องาน"],
-      unit: newTask["หน่วยงาน"],
-      responsible: newTask["ผู้รับผิดชอบ"],
-      frequency: newTask["ความถี่"],
-      taskType: newTask["ประเภทงาน"],
-      progress: newTask["ขั้นตอนการดำเนินงาน"],
-      deadline: newTask["กำหนดแล้วเสร็จ"],
-      actualCompletion: newTask["ทำเสร็จจริง"],
-      delayDays: newTask["ล่าช้า (วัน)"],
-      status: newTask["สถานะ"],
-      remarks: newTask["หมายเหตุ"],
-      attachments: newTask["ไฟล์แนบ"],
-      groupId: newTask["รหัสกลุ่มงาน"],
-      createdAt: newTask["วันที่สร้าง"],
-    });
+    res.json(createdTasks.length === 1 ? createdTasks[0] : createdTasks);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -398,9 +408,9 @@ app.post("/api/logs", async (req, res) => {
 });
 
 // Google Drive Upload Endpoint
-app.post("/api/upload", upload.single('file'), async (req: any, res) => {
+app.post("/api/upload", upload.array('files'), async (req: any, res) => {
   try {
-    if (!req.file) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "ไม่พบไฟล์ที่อัปโหลด" });
     }
 
@@ -444,35 +454,46 @@ app.post("/api/upload", upload.single('file'), async (req: any, res) => {
       folderId = folder.data.id;
     }
 
-    // 2. Upload File to Folder
-    const fileMetadata = {
-      name: req.file.originalname,
-      parents: [folderId],
-    };
-    const media = {
-      mimeType: req.file.mimetype,
-      body: Readable.from(req.file.buffer),
-    };
+    const uploadResults = [];
 
-    const file = await drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: 'id, webViewLink',
-    });
+    // 2. Upload Files to Folder
+    for (const file of req.files) {
+      const fileMetadata = {
+        name: file.originalname,
+        parents: [folderId],
+      };
+      const media = {
+        mimeType: file.mimetype,
+        body: Readable.from(file.buffer),
+      };
 
-    // 3. Set permission so anyone with link can view (optional, but often needed)
-    await drive.permissions.create({
-      fileId: file.data.id!,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone',
-      },
-    });
+      const driveFile = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, webViewLink',
+      });
+
+      // 3. Set permission so anyone with link can view
+      await drive.permissions.create({
+        fileId: driveFile.data.id!,
+        requestBody: {
+          role: 'reader',
+          type: 'anyone',
+        },
+      });
+
+      uploadResults.push({
+        fileId: driveFile.data.id,
+        webViewLink: driveFile.data.webViewLink,
+        name: file.originalname
+      });
+    }
 
     res.json({ 
-      fileId: file.data.id, 
-      webViewLink: file.data.webViewLink,
-      folderId: folderId
+      files: uploadResults,
+      folderId: folderId,
+      // For backward compatibility if needed, though we should update frontend
+      webViewLink: uploadResults[0].webViewLink 
     });
   } catch (error: any) {
     console.error("Upload error:", error);

@@ -165,7 +165,7 @@ export default function App() {
 
   // File Upload State
   const [uploading, setUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -239,10 +239,10 @@ export default function App() {
     let attachments = taskData.attachments || editingTask?.attachments;
 
     // Handle File Upload if selected
-    if (selectedFile) {
+    if (selectedFiles.length > 0) {
       try {
         const formData = new FormData();
-        formData.append('file', selectedFile);
+        selectedFiles.forEach(file => formData.append('files', file));
         formData.append('taskName', taskData.taskName || '');
 
         const uploadRes = await fetch('/api/upload', {
@@ -252,7 +252,12 @@ export default function App() {
 
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json();
-          attachments = uploadData.webViewLink;
+          // If a folder was created, use the folder link as the primary attachment
+          if (uploadData.folderId) {
+            attachments = `https://drive.google.com/drive/folders/${uploadData.folderId}`;
+          } else if (uploadData.files && uploadData.files.length > 0) {
+            attachments = uploadData.files[0].webViewLink;
+          }
         } else {
           const errData = await uploadRes.json();
           throw new Error(errData.error || 'อัปโหลดไฟล์ไม่สำเร็จ');
@@ -267,44 +272,41 @@ export default function App() {
     const units = taskData.unit ? taskData.unit.split(', ').filter(Boolean) : [];
     const baseGroupId = taskData.groupId || `G-${Date.now()}`;
 
+    let status: Task['status'] = 'รอดำเนินการ';
+    let delayDays = '0';
+    
+    if (taskData.actualCompletion && taskData.deadline) {
+      const actual = parseISO(taskData.actualCompletion);
+      const deadline = parseISO(taskData.deadline);
+      const diff = differenceInDays(actual, deadline);
+      delayDays = diff.toString();
+      
+      if (diff < 0) status = 'ก่อนเวลา';
+      else if (diff === 0) status = 'ตรงเวลา';
+      else status = 'ล่าช้า';
+    }
+
     if (!editingTask) {
-      // CREATE MODE: Split into multiple tasks if multiple units selected
+      // CREATE MODE: Use batch creation endpoint
       try {
-        const promises = units.map(async (unit) => {
-          let status: Task['status'] = 'รอดำเนินการ';
-          let delayDays = '0';
-          
-          if (taskData.actualCompletion && taskData.deadline) {
-            const actual = parseISO(taskData.actualCompletion);
-            const deadline = parseISO(taskData.deadline);
-            const diff = differenceInDays(actual, deadline);
-            delayDays = diff.toString();
-            
-            if (diff < 0) status = 'ก่อนเวลา';
-            else if (diff === 0) status = 'ตรงเวลา';
-            else status = 'ล่าช้า';
-          }
-
-          const res = await fetch('/api/tasks', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'x-user-email': employeeId
-            },
-            body: JSON.stringify({ ...taskData, unit, status, delayDays, attachments, groupId: baseGroupId })
-          });
-          
-          if (!res.ok) {
-            const responseData = await res.json();
-            throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
-          }
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-email': employeeId
+          },
+          body: JSON.stringify({ ...taskData, units, status, delayDays, attachments, groupId: baseGroupId })
         });
+        
+        if (!res.ok) {
+          const responseData = await res.json();
+          throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
+        }
 
-        await Promise.all(promises);
         await fetchTasks();
         setIsModalOpen(false);
         setEditingTask(null);
-        setSelectedFile(null);
+        setSelectedFiles([]);
         alert(`บันทึกข้อมูลสำเร็จ (${units.length} รายการ)`);
       } catch (err: any) {
         console.error('Failed to save tasks', err);
@@ -316,20 +318,6 @@ export default function App() {
       // EDIT MODE: Update the single task
       const url = `/api/tasks/${editingTask.id}`;
       
-      let status: Task['status'] = 'รอดำเนินการ';
-      let delayDays = '0';
-      
-      if (taskData.actualCompletion && taskData.deadline) {
-        const actual = parseISO(taskData.actualCompletion);
-        const deadline = parseISO(taskData.deadline);
-        const diff = differenceInDays(actual, deadline);
-        delayDays = diff.toString();
-        
-        if (diff < 0) status = 'ก่อนเวลา';
-        else if (diff === 0) status = 'ตรงเวลา';
-        else status = 'ล่าช้า';
-      }
-
       try {
         const res = await fetch(url, {
           method: 'PUT',
@@ -348,7 +336,7 @@ export default function App() {
         await fetchTasks();
         setIsModalOpen(false);
         setEditingTask(null);
-        setSelectedFile(null);
+        setSelectedFiles([]);
         alert('บันทึกการแก้ไขสำเร็จ');
       } catch (err: any) {
         console.error('Failed to update task', err);
@@ -1377,7 +1365,11 @@ export default function App() {
                   <div className="relative">
                     <input 
                       type="file"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setSelectedFiles(files);
+                      }}
                       className="hidden"
                       id="file-upload"
                     />
@@ -1390,15 +1382,29 @@ export default function App() {
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-bold text-[#1A1A1A]">
-                          {selectedFile ? selectedFile.name : 'คลิกเพื่อเลือกไฟล์'}
+                          {selectedFiles.length > 0 ? `${selectedFiles.length} ไฟล์ที่เลือก` : 'คลิกเพื่อเลือกไฟล์'}
                         </p>
                         <p className="text-xs text-[#6B7280]">
-                          {selectedFile ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : 'รองรับไฟล์เอกสารและรูปภาพ'}
+                          {selectedFiles.length > 0 
+                            ? `${(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB` 
+                            : 'รองรับไฟล์เอกสารและรูปภาพ (เลือกได้หลายไฟล์)'}
                         </p>
                       </div>
                     </label>
                   </div>
-                  {editingTask?.attachments && !selectedFile && (
+                  {selectedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedFiles.map((f, idx) => (
+                        <div key={idx} className="px-2 py-1 bg-purple-50 text-purple-600 text-[10px] font-bold rounded-lg border border-purple-100 flex items-center gap-1">
+                          <span className="truncate max-w-[100px]">{f.name}</span>
+                          <button type="button" onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}>
+                            <X size={10} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editingTask?.attachments && selectedFiles.length === 0 && (
                     <p className="text-[10px] text-emerald-600 font-bold">
                       ✓ มีไฟล์แนบเดิมอยู่แล้ว: <a href={editingTask.attachments} target="_blank" rel="noreferrer" className="underline">ดูไฟล์</a>
                     </p>
@@ -1408,7 +1414,7 @@ export default function App() {
                 <div className="pt-4 flex gap-4">
                   <button 
                     type="button"
-                    onClick={() => { setIsModalOpen(false); setSelectedFile(null); }}
+                    onClick={() => { setIsModalOpen(false); setSelectedFiles([]); }}
                     className="flex-1 py-4 text-[#6B7280] font-bold hover:bg-[#F3F4F6] rounded-2xl transition-colors"
                   >
                     ยกเลิก
