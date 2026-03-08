@@ -155,7 +155,7 @@ async function getDoc() {
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ความสำคัญ", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
       const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
@@ -213,7 +213,6 @@ app.get("/api/tasks", async (req, res) => {
       unit: row.get("หน่วยงาน"),
       responsible: row.get("ผู้รับผิดชอบ"),
       frequency: row.get("ความถี่"),
-      priority: row.get("ความสำคัญ"),
       taskType: row.get("ประเภทงาน"),
       progress: row.get("ขั้นตอนการดำเนินงาน"),
       deadline: row.get("กำหนดแล้วเสร็จ"),
@@ -247,7 +246,6 @@ app.post("/api/tasks", async (req, res) => {
       "หน่วยงาน": req.body.unit,
       "ผู้รับผิดชอบ": req.body.responsible,
       "ความถี่": req.body.frequency,
-      "ความสำคัญ": req.body.priority,
       "ประเภทงาน": req.body.taskType,
       "ขั้นตอนการดำเนินงาน": req.body.progress,
       "กำหนดแล้วเสร็จ": req.body.deadline,
@@ -278,7 +276,6 @@ app.post("/api/tasks", async (req, res) => {
       unit: newTask["หน่วยงาน"],
       responsible: newTask["ผู้รับผิดชอบ"],
       frequency: newTask["ความถี่"],
-      priority: newTask["ความสำคัญ"],
       taskType: newTask["ประเภทงาน"],
       progress: newTask["ขั้นตอนการดำเนินงาน"],
       deadline: newTask["กำหนดแล้วเสร็จ"],
@@ -309,7 +306,6 @@ app.put("/api/tasks/:id", async (req, res) => {
         unit: "หน่วยงาน",
         responsible: "ผู้รับผิดชอบ",
         frequency: "ความถี่",
-        priority: "ความสำคัญ",
         taskType: "ประเภทงาน",
         progress: "ขั้นตอนการดำเนินงาน",
         deadline: "กำหนดแล้วเสร็จ",

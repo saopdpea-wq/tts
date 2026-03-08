@@ -49,7 +49,6 @@ interface Task {
   unit: string; // Will store comma-separated units
   responsible: string;
   frequency: string;
-  priority: string;
   taskType: string;
   progress: string;
   deadline: string;
@@ -115,13 +114,6 @@ const STATIONS = [
   'สถานีไฟฟ้าบ้านแพ้ว 2'
 ];
 
-const PRIORITIES = [
-  { id: '1', label: '1 สำคัญและเร่งด่วน (ทำทันที)', color: '#ef4444', bg: '#fee2e2' },
-  { id: '2', label: '2 ไม่สำคัญแต่เร่งด่วน (มอบหมาย)', color: '#10b981', bg: '#d1fae5' },
-  { id: '3', label: '3 สำคัญแต่ไม่เร่งด่วน (วางแผนทำ)', color: '#f59e0b', bg: '#fef3c7' },
-  { id: '4', label: '4 ไม่สำคัญและไม่เร่งด่วน (ทำเมื่อว่าง)', color: '#3b82f6', bg: '#dbeafe' }
-];
-
 const TASK_TYPES = [
   'งาน routine',
   'งานสำคัญที่ต้องทำทันที เร่งด่วน',
@@ -153,6 +145,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [unitFilter, setUnitFilter] = useState('ทุกหน่วยงาน');
   const [statusFilter, setStatusFilter] = useState('ทุกสถานะ');
+  const [typeFilter, setTypeFilter] = useState('ทุกประเภทงาน');
+  const [deadlineFilter, setDeadlineFilter] = useState('');
+  const [completionFilter, setCompletionFilter] = useState('');
   const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'status'>('none');
   
   // Dashboard Filters
@@ -329,12 +324,17 @@ export default function App() {
     return tasks.filter(task => {
       const matchesSearch = task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           task.responsible.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          task.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (task.groupId && task.groupId.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.includes(unitFilter);
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
-      return matchesSearch && matchesUnit && matchesStatus;
+      const matchesType = typeFilter === 'ทุกประเภทงาน' || task.taskType === typeFilter;
+      const matchesDeadline = !deadlineFilter || (task.deadline && task.deadline.includes(deadlineFilter));
+      const matchesCompletion = !completionFilter || (task.actualCompletion && task.actualCompletion.includes(completionFilter));
+      
+      return matchesSearch && matchesUnit && matchesStatus && matchesType && matchesDeadline && matchesCompletion;
     });
-  }, [tasks, searchQuery, unitFilter, statusFilter]);
+  }, [tasks, searchQuery, unitFilter, statusFilter, typeFilter, deadlineFilter, completionFilter]);
 
   const groupedTasks = useMemo(() => {
     if (groupBy === 'none') return { 'รายการทั้งหมด': filteredTasks };
@@ -750,6 +750,18 @@ export default function App() {
                     >
                       <option>ทุกหน่วยงาน</option>
                       {UNITS.map(u => <option key={u}>{u}</option>)}
+                      {STATIONS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">ประเภทงาน</label>
+                    <select 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                    >
+                      <option>ทุกประเภทงาน</option>
+                      {TASK_TYPES.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   <div className="flex-1 min-w-[200px]">
@@ -765,6 +777,24 @@ export default function App() {
                       <option>ตรงเวลา</option>
                       <option>ล่าช้า</option>
                     </select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">กำหนดแล้วเสร็จ</label>
+                    <input 
+                      type="date"
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={deadlineFilter}
+                      onChange={(e) => setDeadlineFilter(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">ทำเสร็จจริง</label>
+                    <input 
+                      type="date"
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={completionFilter}
+                      onChange={(e) => setCompletionFilter(e.target.value)}
+                    />
                   </div>
                   <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">จัดกลุ่มตาม</label>
@@ -787,7 +817,7 @@ export default function App() {
                 <thead>
                   <tr className="bg-[#F9FAFB] text-[#6B7280] text-xs font-bold uppercase tracking-wider">
                     <th className="px-6 py-4">ชื่องาน / ประเภท</th>
-                    <th className="px-6 py-4">หน่วยงาน / ความสำคัญ</th>
+                    <th className="px-6 py-4">หน่วยงาน / ผู้รับผิดชอบ</th>
                     <th className="px-6 py-4">ความถี่ / กำหนดเสร็จ</th>
                     <th className="px-6 py-4">ขั้นตอนการดำเนินงาน</th>
                     <th className="px-6 py-4 text-center">สถานะ</th>
@@ -823,17 +853,7 @@ export default function App() {
                           </td>
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium text-[#4B5563] truncate max-w-[150px]">{task.unit}</p>
-                            <div className="mt-1">
-                              {PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority)) && (
-                                <span className="px-2 py-0.5 rounded text-[9px] font-bold" 
-                                      style={{ 
-                                        backgroundColor: PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority))?.bg,
-                                        color: PRIORITIES.find(p => p.label === task.priority || p.label.includes(task.priority))?.color
-                                      }}>
-                                  {task.priority}
-                                </span>
-                              )}
-                            </div>
+                            <p className="text-[10px] text-[#6B7280] mt-1 uppercase font-medium">{task.responsible}</p>
                           </td>
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium">{task.frequency}</p>
@@ -983,9 +1003,22 @@ export default function App() {
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                      <Filter size={14} /> หน่วยงาน / สถานีไฟฟ้าที่รับผิดชอบ (เลือกได้หลายรายการ)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                        <Filter size={14} /> หน่วยงานที่รับผิดชอบ (เลือกได้หลายรายการ)
+                      </label>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const checkboxes = document.querySelectorAll('input[name="unit"].unit-checkbox');
+                          const allChecked = Array.from(checkboxes).every((cb: any) => cb.checked);
+                          checkboxes.forEach((cb: any) => cb.checked = !allChecked);
+                        }}
+                        className="text-[10px] font-bold text-purple-600 hover:text-purple-700"
+                      >
+                        เลือกทั้งหมด / ยกเลิก
+                      </button>
+                    </div>
                     <div className="grid grid-cols-4 gap-2 mb-4">
                       {UNITS.map(u => (
                         <label key={u} className="relative cursor-pointer group">
@@ -994,7 +1027,7 @@ export default function App() {
                             name="unit" 
                             value={u} 
                             defaultChecked={editingTask?.unit?.includes(u)}
-                            className="peer sr-only" 
+                            className="peer sr-only unit-checkbox" 
                           />
                           <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:bg-[#9333EA] peer-checked:text-white peer-checked:border-[#9333EA] hover:bg-[#F9FAFB] transition-all">
                             {u}
@@ -1005,7 +1038,24 @@ export default function App() {
                     
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">สถานีไฟฟ้า / แผนก</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider">สถานีไฟฟ้า / แผนก</span>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const checkboxes = document.querySelectorAll('input[name="unit"].station-checkbox');
+                              const visibleCheckboxes = Array.from(checkboxes).filter((cb: any) => {
+                                const item = cb.closest('.station-item');
+                                return item && item.style.display !== 'none';
+                              });
+                              const allChecked = visibleCheckboxes.every((cb: any) => cb.checked);
+                              visibleCheckboxes.forEach((cb: any) => cb.checked = !allChecked);
+                            }}
+                            className="text-[10px] font-bold text-purple-600 hover:text-purple-700"
+                          >
+                            เลือกทั้งหมดที่แสดง
+                          </button>
+                        </div>
                         <div className="relative w-48">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-[#9CA3AF]" size={12} />
                           <input 
@@ -1034,7 +1084,7 @@ export default function App() {
                               name="unit" 
                               value={s} 
                               defaultChecked={editingTask?.unit?.includes(s)}
-                              className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500" 
+                              className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500 station-checkbox" 
                             />
                             <span className="text-[10px] font-medium leading-tight">{s}</span>
                           </label>
@@ -1045,34 +1095,6 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
-                      ความสำคัญของงาน
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      {PRIORITIES.map(p => (
-                        <label key={p.id} className="relative cursor-pointer group">
-                          <input 
-                            type="radio" 
-                            name="priority" 
-                            value={p.label} 
-                            defaultChecked={editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))}
-                            required
-                            className="peer sr-only" 
-                          />
-                          <div className="p-4 flex items-center gap-3 border border-[#E5E7EB] rounded-2xl peer-checked:border-transparent transition-all"
-                               style={{ 
-                                 backgroundColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.bg : 'white',
-                                 color: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#6B7280',
-                                 borderColor: (editingTask?.priority === p.label || (editingTask?.priority && p.label.includes(editingTask.priority))) ? p.color : '#E5E7EB'
-                               }}>
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                            <span className="text-xs font-bold">{p.label}</span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
                       ความถี่
