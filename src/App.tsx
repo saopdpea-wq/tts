@@ -255,58 +255,98 @@ export default function App() {
       }
     }
 
-    const method = editingTask ? 'PUT' : 'POST';
-    const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/tasks';
-    
-    // Calculate status and delay
-    let status: Task['status'] = 'รอดำเนินการ';
-    let delayDays = '0';
-    
-    if (taskData.actualCompletion && taskData.deadline) {
-      const actual = parseISO(taskData.actualCompletion);
-      const deadline = parseISO(taskData.deadline);
-      const diff = differenceInDays(actual, deadline);
-      delayDays = diff.toString();
-      
-      if (diff < 0) status = 'ก่อนเวลา';
-      else if (diff === 0) status = 'ตรงเวลา';
-      else status = 'ล่าช้า';
-    }
+    const units = taskData.unit ? taskData.unit.split(', ').filter(Boolean) : [];
+    const baseGroupId = taskData.groupId || `G-${Date.now()}`;
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-user-email': employeeId
-        },
-        body: JSON.stringify({ ...taskData, status, delayDays, attachments })
-      });
+    if (!editingTask) {
+      // CREATE MODE: Split into multiple tasks if multiple units selected
+      try {
+        const promises = units.map(async (unit) => {
+          let status: Task['status'] = 'รอดำเนินการ';
+          let delayDays = '0';
+          
+          if (taskData.actualCompletion && taskData.deadline) {
+            const actual = parseISO(taskData.actualCompletion);
+            const deadline = parseISO(taskData.deadline);
+            const diff = differenceInDays(actual, deadline);
+            delayDays = diff.toString();
+            
+            if (diff < 0) status = 'ก่อนเวลา';
+            else if (diff === 0) status = 'ตรงเวลา';
+            else status = 'ล่าช้า';
+          }
+
+          const res = await fetch('/api/tasks', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-user-email': employeeId
+            },
+            body: JSON.stringify({ ...taskData, unit, status, delayDays, attachments, groupId: baseGroupId })
+          });
+          
+          if (!res.ok) {
+            const responseData = await res.json();
+            throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
+          }
+        });
+
+        await Promise.all(promises);
+        await fetchTasks();
+        setIsModalOpen(false);
+        setEditingTask(null);
+        setSelectedFile(null);
+        alert(`บันทึกข้อมูลสำเร็จ (${units.length} รายการ)`);
+      } catch (err: any) {
+        console.error('Failed to save tasks', err);
+        alert('ไม่สามารถบันทึกได้: ' + err.message);
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      // EDIT MODE: Update the single task
+      const url = `/api/tasks/${editingTask.id}`;
       
-      let responseData;
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        responseData = await res.json();
-      } else {
-        const text = await res.text();
-        console.error("Non-JSON response:", text);
-        throw new Error(`Server returned non-JSON response: ${res.status} ${res.statusText}`);
+      let status: Task['status'] = 'รอดำเนินการ';
+      let delayDays = '0';
+      
+      if (taskData.actualCompletion && taskData.deadline) {
+        const actual = parseISO(taskData.actualCompletion);
+        const deadline = parseISO(taskData.deadline);
+        const diff = differenceInDays(actual, deadline);
+        delayDays = diff.toString();
+        
+        if (diff < 0) status = 'ก่อนเวลา';
+        else if (diff === 0) status = 'ตรงเวลา';
+        else status = 'ล่าช้า';
       }
 
-      if (!res.ok) {
-        throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
-      }
+      try {
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-email': employeeId
+          },
+          body: JSON.stringify({ ...taskData, status, delayDays, attachments })
+        });
+        
+        if (!res.ok) {
+          const responseData = await res.json();
+          throw new Error(responseData?.error || `เกิดข้อผิดพลาดในการบันทึกข้อมูล (${res.status})`);
+        }
 
-      await fetchTasks();
-      setIsModalOpen(false);
-      setEditingTask(null);
-      setSelectedFile(null);
-      alert('บันทึกข้อมูลสำเร็จ');
-    } catch (err: any) {
-      console.error('Failed to save task', err);
-      alert('ไม่สามารถบันทึกได้: ' + err.message);
-    } finally {
-      setUploading(false);
+        await fetchTasks();
+        setIsModalOpen(false);
+        setEditingTask(null);
+        setSelectedFile(null);
+        alert('บันทึกการแก้ไขสำเร็จ');
+      } catch (err: any) {
+        console.error('Failed to update task', err);
+        alert('ไม่สามารถบันทึกได้: ' + err.message);
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -359,6 +399,7 @@ export default function App() {
       taskName: `[ส่งต่อ] ${task.taskName}`,
       progress: task.progress,
       remarks: `ส่งต่อจาก: ${task.unit}`,
+      responsible: task.responsible,
       groupId: task.groupId || task.id
     });
     setIsModalOpen(true);
@@ -969,8 +1010,13 @@ export default function App() {
                 
                 // Collect multi-select units
                 const selectedUnits = Array.from(e.currentTarget.querySelectorAll('input[name="unit"]:checked')).map((el: any) => el.value);
-                data.unit = selectedUnits.join(', ');
                 
+                if (selectedUnits.length === 0) {
+                  alert('กรุณาเลือกหน่วยงานที่รับผิดชอบอย่างน้อย 1 แห่ง');
+                  return;
+                }
+
+                (data as any).unit = selectedUnits.join(', ');
                 handleSaveTask(data);
               }} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-6">
@@ -1111,6 +1157,18 @@ export default function App() {
                       <option>รายไตรมาส</option>
                       <option>รายปี</option>
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                      ผู้รับผิดชอบ
+                    </label>
+                    <input 
+                      name="responsible"
+                      defaultValue={editingTask?.responsible || initialForwardData?.responsible || employeeId}
+                      required
+                      placeholder="ระบุชื่อผู้รับผิดชอบ..."
+                      className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    />
                   </div>
                 </div>
 
