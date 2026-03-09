@@ -244,10 +244,11 @@ app.post("/api/tasks", async (req, res) => {
     // Support batch creation if units array is provided
     const units = Array.isArray(req.body.units) ? req.body.units : [req.body.unit];
     const baseGroupId = req.body.groupId || `G-${Date.now()}`;
-    const createdTasks = [];
+    const tasksToCreate = [];
+    const logsToCreate = [];
 
     for (const unit of units) {
-      const taskId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const taskId = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
       const newTask = {
         "รหัส": taskId,
         "ชื่องาน": req.body.taskName,
@@ -266,35 +267,44 @@ app.post("/api/tasks", async (req, res) => {
         "วันที่สร้าง": createdAt,
       };
       
-      await sheet.addRow(newTask);
+      tasksToCreate.push(newTask);
       
       if (logSheet) {
-        await logSheet.addRow({
+        logsToCreate.push({
           "วันเวลา": createdAt,
           "อีเมลผู้ใช้": Array.isArray(userEmail) ? userEmail[0] : (userEmail || "unknown"),
           "การกระทำ": "CREATE_TASK",
           "รายละเอียด": JSON.stringify(newTask),
         });
       }
-      
-      createdTasks.push({
-        id: newTask["รหัส"],
-        taskName: newTask["ชื่องาน"],
-        unit: newTask["หน่วยงาน"],
-        responsible: newTask["ผู้รับผิดชอบ"],
-        frequency: newTask["ความถี่"],
-        taskType: newTask["ประเภทงาน"],
-        progress: newTask["ขั้นตอนการดำเนินงาน"],
-        deadline: newTask["กำหนดแล้วเสร็จ"],
-        actualCompletion: newTask["ทำเสร็จจริง"],
-        delayDays: newTask["ล่าช้า (วัน)"],
-        status: newTask["สถานะ"],
-        remarks: newTask["หมายเหตุ"],
-        attachments: newTask["ไฟล์แนบ"],
-        groupId: newTask["รหัสกลุ่มงาน"],
-        createdAt: newTask["วันที่สร้าง"],
-      });
     }
+
+    // Use addRows for batch insertion
+    if (tasksToCreate.length > 0) {
+      await sheet.addRows(tasksToCreate);
+    }
+    
+    if (logSheet && logsToCreate.length > 0) {
+      await logSheet.addRows(logsToCreate);
+    }
+
+    const createdTasks = tasksToCreate.map(newTask => ({
+      id: newTask["รหัส"],
+      taskName: newTask["ชื่องาน"],
+      unit: newTask["หน่วยงาน"],
+      responsible: newTask["ผู้รับผิดชอบ"],
+      frequency: newTask["ความถี่"],
+      taskType: newTask["ประเภทงาน"],
+      progress: newTask["ขั้นตอนการดำเนินงาน"],
+      deadline: newTask["กำหนดแล้วเสร็จ"],
+      actualCompletion: newTask["ทำเสร็จจริง"],
+      delayDays: newTask["ล่าช้า (วัน)"],
+      status: newTask["สถานะ"],
+      remarks: newTask["หมายเหตุ"],
+      attachments: newTask["ไฟล์แนบ"],
+      groupId: newTask["รหัสกลุ่มงาน"],
+      createdAt: newTask["วันที่สร้าง"],
+    }));
 
     res.json(createdTasks.length === 1 ? createdTasks[0] : createdTasks);
   } catch (error: any) {
