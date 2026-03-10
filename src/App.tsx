@@ -646,8 +646,8 @@ export default function App() {
                 className="p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
               >
                 <option value="all">ทุกปี</option>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const y = (new Date().getFullYear() - i).toString();
+                {Array.from({ length: 11 }, (_, i) => {
+                  const y = (new Date().getFullYear() + 5 - i).toString();
                   return <option key={y} value={y}>{parseInt(y) + 543}</option>;
                 })}
               </select>
@@ -1230,7 +1230,7 @@ export default function App() {
                             type="checkbox" 
                             name="unit" 
                             value={u} 
-                            defaultChecked={editingTask?.unit?.includes(u)}
+                            defaultChecked={editingTask?.unit?.split(',').map(item => item.trim()).includes(u)}
                             className="peer sr-only unit-checkbox" 
                           />
                           <div className="p-3 text-center text-[10px] font-bold border border-[#E5E7EB] rounded-xl peer-checked:bg-[#9333EA] peer-checked:text-white peer-checked:border-[#9333EA] hover:bg-[#F9FAFB] transition-all">
@@ -1287,7 +1287,7 @@ export default function App() {
                               type="checkbox" 
                               name="unit" 
                               value={s} 
-                              defaultChecked={editingTask?.unit?.includes(s)}
+                              defaultChecked={editingTask?.unit?.split(',').map(item => item.trim()).includes(s)}
                               className="w-4 h-4 rounded border-[#E5E7EB] text-purple-600 focus:ring-purple-500 station-checkbox" 
                             />
                             <span className="text-[10px] font-medium leading-tight">{s}</span>
