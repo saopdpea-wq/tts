@@ -23,7 +23,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const PORT = 3000;
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const PARENT_FOLDER_ID = '1-VvUrx8YftGdo37O9masWg3NXEImMoeX';
+const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || '1-VvUrx8YftGdo37O9masWg3NXEImMoeX';
 
 // ฟังก์ชันสำหรับล้างค่าและจัดรูปแบบ Private Key ให้ถูกต้องตามมาตรฐาน PEM
 function formatPrivateKey(key: string | undefined) {
@@ -86,13 +86,17 @@ app.get("/api/auth/google", (req, res) => {
   }
 
   const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/google/callback`;
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + 
-    `client_id=${CLIENT_ID}&` +
-    `redirect_uri=${redirectUri}&` +
-    `response_type=code&` +
-    `scope=https://www.googleapis.com/auth/spreadsheets%20https://www.googleapis.com/auth/drive&` +
-    `access_type=offline&` +
-    `prompt=consent`;
+  
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive',
+    access_type: 'offline',
+    prompt: 'consent'
+  });
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   
   res.redirect(authUrl);
 });
