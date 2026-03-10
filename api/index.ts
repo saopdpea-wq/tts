@@ -55,6 +55,29 @@ const PRIVATE_KEY = formatPrivateKey(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
+
+// ฟังก์ชันสำหรับสร้าง Auth Client (รองรับทั้ง OAuth2 และ Service Account)
+function getAuth() {
+  if (REFRESH_TOKEN && CLIENT_ID && CLIENT_SECRET) {
+    const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
+    oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
+    return oauth2Client;
+  }
+
+  if (!CLIENT_EMAIL || !PRIVATE_KEY) {
+    throw new Error("กรุณาตั้งค่า GOOGLE_REFRESH_TOKEN หรือ Service Account ใน Environment Variables");
+  }
+
+  return new JWT({
+    email: CLIENT_EMAIL,
+    key: PRIVATE_KEY,
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive"
+    ],
+  });
+}
 
 // API Routes
 app.get("/api/auth/google", (req, res) => {
@@ -67,7 +90,7 @@ app.get("/api/auth/google", (req, res) => {
     `client_id=${CLIENT_ID}&` +
     `redirect_uri=${redirectUri}&` +
     `response_type=code&` +
-    `scope=https://www.googleapis.com/auth/spreadsheets&` +
+    `scope=https://www.googleapis.com/auth/spreadsheets%20https://www.googleapis.com/auth/drive&` +
     `access_type=offline&` +
     `prompt=consent`;
   
@@ -95,7 +118,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
     const refreshToken = tokens.refresh_token;
 
     if (!refreshToken) {
-      return res.send("ไม่ได้รับ Refresh Token (อาจเป็นเพราะคุณเคยอนุญาตไปแล้ว ให้ไปที่ Google Account Settings แล้วลบแอปออกก่อนแล้วลองใหม่)");
+      return res.send("ไม่ได้รับ Refresh Token (อาจเป็นเพราะคุณเคยอนุญาตไปแล้ว ให้ไปที่ Google Account Settings แล้วลบแอปออกก่อนแล้วลองใหม่ หรือใช้ค่าเดิมที่เคยได้)");
     }
 
     res.send(`
@@ -138,20 +161,9 @@ app.get("/api/auth/google/callback", async (req, res) => {
 let isInitialized = false;
 
 async function getDoc() {
-  if (!SHEET_ID || !CLIENT_EMAIL || !PRIVATE_KEY) {
-    throw new Error("ไม่พบข้อมูลการเชื่อมต่อ (Missing Environment Variables)");
-  }
   try {
-    const serviceAccountAuth = new JWT({
-      email: CLIENT_EMAIL,
-      key: PRIVATE_KEY,
-      scopes: [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-      ],
-    });
-
-    const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
+    const auth = getAuth();
+    const doc = new GoogleSpreadsheet(SHEET_ID!, auth as any);
     await doc.loadInfo();
 
     if (!isInitialized) {
@@ -429,13 +441,8 @@ app.post("/api/upload", upload.array('files'), async (req: any, res) => {
       return res.status(400).json({ error: "ไม่พบชื่อรายการงาน" });
     }
 
-    const auth = new google.auth.JWT({
-      email: CLIENT_EMAIL,
-      key: PRIVATE_KEY,
-      scopes: ['https://www.googleapis.com/auth/drive']
-    });
-
-    const drive = google.drive({ version: 'v3', auth });
+    const auth = getAuth();
+    const drive = google.drive({ version: 'v3', auth: auth as any });
 
     // 1. Create Folder: [Task Name]_[DDMMYYYY]
     const now = new Date();
