@@ -154,6 +154,8 @@ export default function App() {
   const [deadlineEnd, setDeadlineEnd] = useState('');
   const [completionStart, setCompletionStart] = useState('');
   const [completionEnd, setCompletionEnd] = useState('');
+  const [createdStart, setCreatedStart] = useState('');
+  const [createdEnd, setCreatedEnd] = useState('');
 
   // Drill-down
   const [selectedUnitDetail, setSelectedUnitDetail] = useState<string | null>(null);
@@ -377,9 +379,13 @@ export default function App() {
       const matchesCompletion = (!completionStart || (task.actualCompletion && task.actualCompletion >= completionStart)) &&
                                (!completionEnd || (task.actualCompletion && task.actualCompletion <= completionEnd));
       
-      return matchesSearch && matchesGroup && matchesUnit && matchesStatus && matchesType && matchesDeadline && matchesCompletion;
+      // Created Range
+      const matchesCreated = (!createdStart || (task.createdAt && task.createdAt.split('T')[0] >= createdStart)) &&
+                             (!createdEnd || (task.createdAt && task.createdAt.split('T')[0] <= createdEnd));
+      
+      return matchesSearch && matchesGroup && matchesUnit && matchesStatus && matchesType && matchesDeadline && matchesCompletion && matchesCreated;
     });
-  }, [tasks, searchQuery, groupQuery, unitFilter, statusFilter, typeFilter, deadlineStart, deadlineEnd, completionStart, completionEnd]);
+  }, [tasks, searchQuery, groupQuery, unitFilter, statusFilter, typeFilter, deadlineStart, deadlineEnd, completionStart, completionEnd, createdStart, createdEnd]);
 
   const groupedTasks = useMemo(() => {
     if (groupBy === 'none') return { 'รายการทั้งหมด': filteredTasks };
@@ -854,7 +860,25 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">วันที่สร้าง (ช่วงวันที่)</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={createdStart}
+                        onChange={(e) => setCreatedStart(e.target.value)}
+                      />
+                      <span className="text-[#6B7280] font-bold">ถึง</span>
+                      <input 
+                        type="date"
+                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={createdEnd}
+                        onChange={(e) => setCreatedEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">กำหนดแล้วเสร็จ (ช่วงวันที่)</label>
                     <div className="flex items-center gap-2">
