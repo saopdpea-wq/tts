@@ -479,8 +479,11 @@ app.post("/api/upload", upload.array('files'), async (req: any, res) => {
 
     // 2. Upload Files to Folder
     for (const file of req.files) {
+      // Decode filename from Latin1 to UTF-8 to support Thai characters
+      const fileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      
       const fileMetadata = {
-        name: file.originalname,
+        name: fileName,
         parents: [folderId],
       };
       const media = {
