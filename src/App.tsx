@@ -9,6 +9,7 @@ import {
   LogOut, 
   ChevronLeft, 
   ChevronRight,
+  ArrowUpRight,
   TrendingUp,
   Clock,
   CheckCircle2,
@@ -237,6 +238,7 @@ export default function App() {
   };
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
+    if (uploading) return; // Prevent multiple submissions
     setUploading(true);
     let attachments = taskData.attachments || editingTask?.attachments;
 
@@ -367,7 +369,7 @@ export default function App() {
                           (task.progress && task.progress.toLowerCase().includes(searchQuery.toLowerCase()));
       
       const matchesGroup = !groupQuery || (task.groupId && task.groupId.toLowerCase().includes(groupQuery.toLowerCase()));
-      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.includes(unitFilter);
+      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.split(',').map(u => u.trim()).includes(unitFilter);
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
       const matchesType = typeFilter === 'ทุกประเภทงาน' || task.taskType === typeFilter;
       
@@ -998,10 +1000,10 @@ export default function App() {
                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => handleForwardTask(task)}
-                                title="ส่งต่องาน"
+                                title="ส่งต่องาน (สร้างรายการใหม่)"
                                 className="p-2 text-[#6B7280] hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                               >
-                                <ChevronRight size={18} />
+                                <ArrowUpRight size={18} />
                               </button>
                               <button 
                                 onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
@@ -1072,7 +1074,7 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-8">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                   {['รอดำเนินการ', 'ก่อนเวลา', 'ตรงเวลา', 'ล่าช้า'].map(status => {
-                    const count = tasks.filter(t => t.unit.includes(selectedUnitDetail) && t.status === status).length;
+                    const count = tasks.filter(t => t.unit.split(',').map(u => u.trim()).includes(selectedUnitDetail) && t.status === status).length;
                     return (
                       <div key={status} className="p-4 rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
                         <p className="text-[10px] font-bold text-[#6B7280] uppercase tracking-wider mb-1">{status}</p>
@@ -1090,11 +1092,12 @@ export default function App() {
                         <th className="px-6 py-4">กำหนดเสร็จ</th>
                         <th className="px-6 py-4">ทำเสร็จจริง</th>
                         <th className="px-6 py-4 text-center">สถานะ</th>
+                        <th className="px-6 py-4 text-right">จัดการ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E7EB]">
-                      {tasks.filter(t => t.unit.includes(selectedUnitDetail)).map(task => (
-                        <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
+                      {tasks.filter(t => t.unit.split(',').map(u => u.trim()).includes(selectedUnitDetail)).map(task => (
+                        <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
                           <td className="px-6 py-4">
                             <p className="font-bold text-sm text-[#1A1A1A]">{task.taskName}</p>
                             <p className="text-[10px] text-[#6B7280] uppercase">{task.taskType}</p>
@@ -1116,6 +1119,22 @@ export default function App() {
                               )}>
                                 {task.status}
                               </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
+                                className="p-1.5 text-[#6B7280] hover:text-[#9333EA] hover:bg-purple-50 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteTask(task.id)}
+                                className="p-1.5 text-[#6B7280] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1152,8 +1171,10 @@ export default function App() {
                     <ListTodo size={24} />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">{editingTask ? 'แก้ไขรายการงาน' : 'เพิ่มรายการงานใหม่'}</h2>
-                    <p className="text-[#6B7280] text-sm">สร้างงานใหม่จากข้อมูลเดิมเพื่อเริ่มขั้นตอนถัดไป</p>
+                    <h2 className="text-2xl font-bold">{editingTask ? 'แก้ไขรายการงาน' : (initialForwardData ? 'ส่งต่องาน / สร้างงานใหม่' : 'เพิ่มรายการงานใหม่')}</h2>
+                    <p className="text-[#6B7280] text-sm">
+                      {editingTask ? 'ปรับปรุงข้อมูลรายการงานเดิม' : 'สร้างงานใหม่จากข้อมูลเดิมเพื่อเริ่มขั้นตอนถัดไป'}
+                    </p>
                   </div>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded-full transition-colors">
