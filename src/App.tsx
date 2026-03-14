@@ -65,7 +65,8 @@ interface Task {
 
 const UNITS = [
   'หน่วย 1', 'หน่วย 2', 'หน่วย 3', 'หน่วย 4', 'หน่วย 5', 
-  'หน่วย 6', 'หน่วย 7', 'หน่วย 17', 'หน่วย 19', 'หน่วย 20', 'หน่วย 21'
+  'หน่วย 6', 'หน่วย 7', 'หน่วย 17', 'หน่วย 19', 'หน่วย 20', 'หน่วย 21',
+  'หผ.', 'ชผ.', 'เบียร์', 'เอ', 'เอและเบียร์'
 ];
 
 const STATIONS = [
@@ -1413,7 +1414,8 @@ export default function App() {
                       multiple
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
-                        setSelectedFiles(files);
+                        setSelectedFiles(prev => [...prev, ...files]);
+                        e.target.value = ''; // Reset input value to allow selecting same file again
                       }}
                       className="hidden"
                       id="file-upload"
@@ -1427,12 +1429,12 @@ export default function App() {
                       </div>
                       <div className="text-left">
                         <p className="text-sm font-bold text-[#1A1A1A]">
-                          {selectedFiles.length > 0 ? `${selectedFiles.length} ไฟล์ที่เลือก` : 'คลิกเพื่อเลือกไฟล์'}
+                          {selectedFiles.length > 0 ? `เลือกแล้ว ${selectedFiles.length} ไฟล์ (คลิกเพื่อเพิ่มไฟล์เพิ่ม)` : 'คลิกเพื่อเลือกไฟล์'}
                         </p>
                         <p className="text-xs text-[#6B7280]">
                           {selectedFiles.length > 0 
-                            ? `${(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB` 
-                            : 'รองรับไฟล์เอกสารและรูปภาพ (เลือกได้หลายไฟล์)'}
+                            ? `รวมขนาด ${(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB` 
+                            : 'รองรับไฟล์เอกสารและรูปภาพ (กด + เพื่อเพิ่มได้เรื่อยๆ)'}
                         </p>
                       </div>
                     </label>
