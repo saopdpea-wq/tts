@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  Menu,
   Calendar,
   MoreVertical,
   Edit2,
@@ -124,6 +125,13 @@ const TASK_TYPES = [
   'งานที่มอบหมาย ไม่เร่งด่วน'
 ];
 
+const STATUSES = [
+  'ก่อนเวลา',
+  'ตรงเวลา',
+  'ล่าช้า',
+  'รอดำเนินการ'
+];
+
 const STATUS_COLORS = {
   'ก่อนเวลา': '#10b981',
   'ตรงเวลา': '#3b82f6',
@@ -134,6 +142,7 @@ const STATUS_COLORS = {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks'>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,7 +170,7 @@ export default function App() {
 
   // Drill-down
   const [selectedUnitDetail, setSelectedUnitDetail] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'status'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'type' | 'status'>('none');
   
   // Dashboard Filters
   const [dashMonth, setDashMonth] = useState<string>(format(new Date(), 'MM'));
@@ -544,19 +553,43 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F8F9FE] font-sans text-[#1A1A1A]">
+    <div className="flex h-screen bg-[#F8F9FE] font-sans text-[#1A1A1A] overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-[#E5E7EB] flex flex-col">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#9333EA] rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-200">
-            <ListTodo size={24} />
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-[#E5E7EB] flex flex-col transition-transform duration-300 lg:relative lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#9333EA] rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-200">
+              <ListTodo size={24} />
+            </div>
+            <span className="text-xl font-bold tracking-tight text-[#1A1A1A]">TaskTracker</span>
           </div>
-          <span className="text-xl font-bold tracking-tight text-[#1A1A1A]">TaskTracker</span>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 text-[#6B7280] hover:bg-[#F3F4F6] rounded-lg lg:hidden"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <button 
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
               activeTab === 'dashboard' ? "bg-[#9333EA] text-white shadow-md" : "text-[#6B7280] hover:bg-[#F3F4F6]"
@@ -566,7 +599,7 @@ export default function App() {
             <span className="font-medium">Dashboard</span>
           </button>
           <button 
-            onClick={() => setActiveTab('tasks')}
+            onClick={() => { setActiveTab('tasks'); setIsSidebarOpen(false); }}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
               activeTab === 'tasks' ? "bg-[#9333EA] text-white shadow-md" : "text-[#6B7280] hover:bg-[#F3F4F6]"
@@ -598,21 +631,29 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-8">
-        <header className="flex justify-between items-start mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-[#1A1A1A]">
-              {activeTab === 'dashboard' ? 'ภาพรวมการดำเนินงาน' : 'จัดการรายการงาน'}
-            </h1>
-            <p className="text-[#6B7280] mt-1">
-              {activeTab === 'dashboard' ? 'สรุปสถานะงานของทุกหน่วยงาน' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
-            </p>
+      <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <header className="flex flex-col md:flex-row justify-between items-start gap-4 mb-8">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 bg-white border border-[#E5E7EB] rounded-xl text-[#6B7280] lg:hidden shadow-sm"
+            >
+              <Menu size={24} />
+            </button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">
+                {activeTab === 'dashboard' ? 'ภาพรวมการดำเนินงาน' : 'จัดการรายการงาน'}
+              </h1>
+              <p className="text-sm md:text-base text-[#6B7280] mt-1">
+                {activeTab === 'dashboard' ? 'สรุปสถานะงานของทุกหน่วยงาน' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
+              </p>
+            </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full md:w-auto">
             {activeTab === 'tasks' && (
               <button 
                 onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-                className="bg-[#9333EA] text-white px-6 py-3 rounded-xl flex items-center gap-2 font-semibold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95"
+                className="flex-1 md:flex-none bg-[#9333EA] text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95"
               >
                 <Plus size={20} />
                 เพิ่มงานใหม่
@@ -627,37 +668,39 @@ export default function App() {
         {activeTab === 'dashboard' ? (
           <div className="space-y-8">
             {/* Dashboard Filters */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#E5E7EB] flex items-center gap-4">
+            <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-[#E5E7EB] flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <Calendar size={18} className="text-[#6B7280]" />
                 <span className="text-sm font-bold text-[#4B5563]">ช่วงเวลา:</span>
               </div>
-              <select 
-                value={dashMonth}
-                onChange={(e) => setDashMonth(e.target.value)}
-                className="p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-              >
-                <option value="all">ทุกเดือน</option>
-                {Array.from({ length: 12 }, (_, i) => {
-                  const m = (i + 1).toString().padStart(2, '0');
-                  return <option key={m} value={m}>{format(new Date(2024, i, 1), 'MMMM', { locale: th })}</option>;
-                })}
-              </select>
-              <select 
-                value={dashYear}
-                onChange={(e) => setDashYear(e.target.value)}
-                className="p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-              >
-                <option value="all">ทุกปี</option>
-                {Array.from({ length: 11 }, (_, i) => {
-                  const y = (new Date().getFullYear() + 5 - i).toString();
-                  return <option key={y} value={y}>{parseInt(y) + 543}</option>;
-                })}
-              </select>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <select 
+                  value={dashMonth}
+                  onChange={(e) => setDashMonth(e.target.value)}
+                  className="flex-1 sm:flex-none p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                >
+                  <option value="all">ทุกเดือน</option>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = (i + 1).toString().padStart(2, '0');
+                    return <option key={m} value={m}>{format(new Date(2024, i, 1), 'MMMM', { locale: th })}</option>;
+                  })}
+                </select>
+                <select 
+                  value={dashYear}
+                  onChange={(e) => setDashYear(e.target.value)}
+                  className="flex-1 sm:flex-none p-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                >
+                  <option value="all">ทุกปี</option>
+                  {Array.from({ length: 11 }, (_, i) => {
+                    const y = (new Date().getFullYear() + 5 - i).toString();
+                    return <option key={y} value={y}>{parseInt(y) + 543}</option>;
+                  })}
+                </select>
+              </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
               <StatCard icon={<TrendingUp />} label="งานทั้งหมด" value={stats.total} unit="รายการ" color="purple" />
               <StatCard icon={<Clock />} label="รอดำเนินการ" value={stats.pending} unit="ยังไม่เสร็จ" color="amber" />
               <StatCard icon={<CheckCircle2 />} label="ก่อนเวลา" value={stats.early} unit="ประสิทธิภาพดี" color="emerald" />
@@ -666,8 +709,8 @@ export default function App() {
             </div>
 
             {/* Charts Grid */}
-            <div className="grid grid-cols-3 gap-8">
-              <div className="col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-[#E5E7EB]">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+              <div className="xl:col-span-2 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-[#E5E7EB]">
                 <div className="flex items-center gap-3 mb-8">
                   <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center">
                     <TrendingUp size={20} />
@@ -843,10 +886,7 @@ export default function App() {
                       onChange={(e) => setStatusFilter(e.target.value)}
                     >
                       <option>ทุกสถานะ</option>
-                      <option>รอดำเนินการ</option>
-                      <option>ก่อนเวลา</option>
-                      <option>ตรงเวลา</option>
-                      <option>ล่าช้า</option>
+                      {STATUSES.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="flex-1 min-w-[200px]">
@@ -858,71 +898,36 @@ export default function App() {
                     >
                       <option value="none">ไม่จัดกลุ่ม</option>
                       <option value="unit">หน่วยงาน</option>
+                      <option value="type">ประเภทงาน</option>
                       <option value="status">สถานะ</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">วันที่สร้าง (ช่วงวันที่)</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={createdStart}
-                        onChange={(e) => setCreatedStart(e.target.value)}
-                      />
-                      <span className="text-[#6B7280] font-bold">ถึง</span>
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={createdEnd}
-                        onChange={(e) => setCreatedEnd(e.target.value)}
-                      />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">วันที่เริ่มต้น</label>
+                    <input 
+                      type="date" 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={deadlineStart}
+                      onChange={(e) => setDeadlineStart(e.target.value)}
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">กำหนดแล้วเสร็จ (ช่วงวันที่)</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={deadlineStart}
-                        onChange={(e) => setDeadlineStart(e.target.value)}
-                      />
-                      <span className="text-[#6B7280] font-bold">ถึง</span>
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={deadlineEnd}
-                        onChange={(e) => setDeadlineEnd(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider ml-1">ทำเสร็จจริง (ช่วงวันที่)</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={completionStart}
-                        onChange={(e) => setCompletionStart(e.target.value)}
-                      />
-                      <span className="text-[#6B7280] font-bold">ถึง</span>
-                      <input 
-                        type="date"
-                        className="flex-1 p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                        value={completionEnd}
-                        onChange={(e) => setCompletionEnd(e.target.value)}
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">วันที่สิ้นสุด</label>
+                    <input 
+                      type="date" 
+                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      value={deadlineEnd}
+                      onChange={(e) => setDeadlineEnd(e.target.value)}
+                    />
                   </div>
                 </div>
-            </div>
+              </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
+            {/* Table (Desktop) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F9FAFB] text-[#6B7280] text-xs font-bold uppercase tracking-wider">
@@ -1014,7 +1019,7 @@ export default function App() {
                               </button>
                               <button 
                                 onClick={() => handleDeleteTask(task.id)}
-                                className="p-2 text-[#6B7280] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-2 text-[#6B7280] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               >
                                 <Trash2 size={18} />
                               </button>
@@ -1026,6 +1031,99 @@ export default function App() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Card Layout (Mobile) */}
+            <div className="md:hidden divide-y divide-[#E5E7EB]">
+              {loading ? (
+                <div className="text-center py-10 text-[#6B7280]">กำลังโหลดข้อมูล...</div>
+              ) : Object.keys(groupedTasks).length === 0 ? (
+                <div className="text-center py-10 text-[#6B7280]">ไม่พบข้อมูลรายการงาน</div>
+              ) : (Object.entries(groupedTasks) as [string, Task[]][]).map(([groupName, groupTasks]) => (
+                <div key={groupName}>
+                  {groupBy !== 'none' && (
+                    <div className="bg-[#F3F4F6] px-4 py-2 text-xs font-bold text-[#4B5563]">
+                      {groupName} ({groupTasks.length})
+                    </div>
+                  )}
+                  <div className="divide-y divide-[#E5E7EB]">
+                    {groupTasks.map((task) => (
+                      <div key={task.id} className="p-4 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="font-bold text-[#1A1A1A] leading-tight">{task.taskName}</p>
+                            <p className="text-[10px] text-[#6B7280] uppercase font-medium mt-1">{task.taskType}</p>
+                          </div>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ml-2",
+                            task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                            task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                            "bg-amber-50 text-amber-600 border-amber-100"
+                          )}>
+                            {task.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 text-[11px]">
+                          <div>
+                            <p className="text-[#6B7280] uppercase font-bold text-[9px]">หน่วยงาน</p>
+                            <p className="font-medium text-[#4B5563] truncate">{task.unit}</p>
+                          </div>
+                          <div>
+                            <p className="text-[#6B7280] uppercase font-bold text-[9px]">กำหนดเสร็จ</p>
+                            <p className="font-medium text-[#4B5563]">
+                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {task.progress && (
+                          <div className="bg-[#F9FAFB] p-2 rounded-lg border border-[#E5E7EB]">
+                            <p className="text-[#6B7280] uppercase font-bold text-[8px] mb-1">ขั้นตอน</p>
+                            <p className="text-[11px] text-[#4B5563] italic line-clamp-2">{task.progress}</p>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center pt-2">
+                          <div className="flex gap-2">
+                            {task.attachments && (
+                              <a 
+                                href={task.attachments} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-[10px] font-bold text-purple-600"
+                              >
+                                <Plus size={12} /> ไฟล์แนบ
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex gap-1">
+                            <button 
+                              onClick={() => handleForwardTask(task)}
+                              className="p-2 text-[#6B7280] bg-[#F3F4F6] rounded-lg"
+                            >
+                              <ArrowUpRight size={16} />
+                            </button>
+                            <button 
+                              onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
+                              className="p-2 text-[#6B7280] bg-[#F3F4F6] rounded-lg"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="p-2 text-red-500 bg-red-50 rounded-lg"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Pagination Placeholder */}
