@@ -373,13 +373,19 @@ export default function App() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      const matchesSearch = task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          task.responsible.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          task.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (task.progress && task.progress.toLowerCase().includes(searchQuery.toLowerCase()));
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = task.taskName.toLowerCase().includes(searchLower) ||
+                          task.responsible.toLowerCase().includes(searchLower) ||
+                          // For unit search, we want to be more specific if it looks like a unit name
+                          task.unit.split(',').some(u => u.trim().toLowerCase().includes(searchLower)) ||
+                          (task.progress && task.progress.toLowerCase().includes(searchLower));
       
       const matchesGroup = !groupQuery || (task.groupId && task.groupId.toLowerCase().includes(groupQuery.toLowerCase()));
-      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || task.unit.split(',').map(u => u.trim()).includes(unitFilter);
+      
+      // Exact match for unit filter dropdown
+      const taskUnits = task.unit.split(',').map(u => u.trim());
+      const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || taskUnits.includes(unitFilter);
+      
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
       const matchesType = typeFilter === 'ทุกประเภทงาน' || task.taskType === typeFilter;
       
@@ -923,6 +929,24 @@ export default function App() {
                       onChange={(e) => setDeadlineEnd(e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button 
+                    onClick={() => {
+                      setSearchQuery('');
+                      setGroupQuery('');
+                      setUnitFilter('ทุกหน่วยงาน');
+                      setStatusFilter('ทุกสถานะ');
+                      setTypeFilter('ทุกประเภทงาน');
+                      setDeadlineStart('');
+                      setDeadlineEnd('');
+                      setGroupBy('none');
+                    }}
+                    className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1 p-2"
+                  >
+                    <X size={14} /> ล้างตัวกรองทั้งหมด
+                  </button>
                 </div>
               </div>
 
