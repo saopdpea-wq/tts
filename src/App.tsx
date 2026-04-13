@@ -20,9 +20,11 @@ import {
   MoreVertical,
   Edit2,
   Trash2,
-  Hash
+  Hash,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 import { 
   BarChart, 
   Bar, 
@@ -434,6 +436,46 @@ export default function App() {
     setIsModalOpen(true);
   };
 
+  const handleExportExcel = () => {
+    const exportData = filteredTasks.map((task, index) => ({
+      'ลำดับ': index + 1,
+      'ชื่องาน': task.taskName,
+      'ประเภทงาน': task.taskType,
+      'หน่วยงานที่รับผิดชอบ': task.unit,
+      'สถานีไฟฟ้า / แผนก': task.unit, // In this app, unit and station are mixed in the same field
+      'ความถี่': task.frequency,
+      'ผู้รับผิดชอบ': task.responsible,
+      'กำหนดแล้วเสร็จ': task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-',
+      'ทำเสร็จจริง': task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-',
+      'Update ขั้นตอนการดำเนินงานอย่างละเอียด': task.progress || '-',
+      'หมายเหตุ': task.remarks || '-',
+      'ไฟล์แนบ': task.attachments || '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks");
+    
+    // Set column widths
+    const wscols = [
+      {wch: 5},  // ลำดับ
+      {wch: 30}, // ชื่องาน
+      {wch: 20}, // ประเภทงาน
+      {wch: 25}, // หน่วยงานที่รับผิดชอบ
+      {wch: 25}, // สถานีไฟฟ้า / แผนก
+      {wch: 15}, // ความถี่
+      {wch: 20}, // ผู้รับผิดชอบ
+      {wch: 15}, // กำหนดแล้วเสร็จ
+      {wch: 15}, // ทำเสร็จจริง
+      {wch: 40}, // Update ขั้นตอนการดำเนินงานอย่างละเอียด
+      {wch: 20}, // หมายเหตุ
+      {wch: 40}  // ไฟล์แนบ
+    ];
+    worksheet['!cols'] = wscols;
+
+    XLSX.writeFile(workbook, `รายการงาน_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+  };
+
   // Dashboard Stats
   const filteredDashTasks = useMemo(() => {
     return tasks.filter(t => {
@@ -657,13 +699,22 @@ export default function App() {
           </div>
           <div className="flex gap-3 w-full md:w-auto">
             {activeTab === 'tasks' && (
-              <button 
-                onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
-                className="flex-1 md:flex-none bg-[#9333EA] text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95"
-              >
-                <Plus size={20} />
-                เพิ่มงานใหม่
-              </button>
+              <>
+                <button 
+                  onClick={handleExportExcel}
+                  className="flex-1 md:flex-none bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95"
+                >
+                  <Download size={20} />
+                  ส่งออก Excel
+                </button>
+                <button 
+                  onClick={() => { setEditingTask(null); setIsModalOpen(true); }}
+                  className="flex-1 md:flex-none bg-[#9333EA] text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold shadow-lg shadow-purple-200 hover:bg-[#7E22CE] transition-all active:scale-95"
+                >
+                  <Plus size={20} />
+                  เพิ่มงานใหม่
+                </button>
+              </>
             )}
             <button className="p-3 bg-white border border-[#E5E7EB] rounded-xl text-[#6B7280] hover:bg-[#F9FAFB] transition-colors shadow-sm">
               <Settings size={20} />
@@ -830,6 +881,70 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Recent Tasks Section */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#E5E7EB]">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                    <ListTodo size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">รายการงานล่าสุด</h3>
+                    <p className="text-sm text-[#6B7280]">งานที่เพิ่งอัปเดต 5 รายการล่าสุด</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('tasks')}
+                  className="text-sm font-bold text-[#9333EA] hover:underline"
+                >
+                  ดูทั้งหมด
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-xs font-bold text-[#6B7280] uppercase tracking-wider border-b border-[#E5E7EB]">
+                      <th className="pb-4 px-2">ชื่องาน</th>
+                      <th className="pb-4 px-2">หน่วยงาน</th>
+                      <th className="pb-4 px-2">กำหนดเสร็จ</th>
+                      <th className="pb-4 px-2 text-center">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E7EB]">
+                    {tasks.slice(0, 5).map((task) => (
+                      <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="py-4 px-2">
+                          <p className="text-sm font-bold text-[#1A1A1A]">{task.taskName}</p>
+                          <p className="text-[10px] text-[#6B7280]">{task.taskType}</p>
+                        </td>
+                        <td className="py-4 px-2">
+                          <p className="text-xs text-[#4B5563]">{task.unit}</p>
+                        </td>
+                        <td className="py-4 px-2">
+                          <p className="text-xs text-[#4B5563]">
+                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                          </p>
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="flex justify-center">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-bold border",
+                              task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                              task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                              task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                              "bg-amber-50 text-amber-600 border-amber-100"
+                            )}>
+                              {task.status}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
