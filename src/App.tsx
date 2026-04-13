@@ -907,6 +907,7 @@ export default function App() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-xs font-bold text-[#6B7280] uppercase tracking-wider border-b border-[#E5E7EB]">
+                      <th className="pb-4 px-2">ลำดับ</th>
                       <th className="pb-4 px-2">ชื่องาน</th>
                       <th className="pb-4 px-2">หน่วยงาน</th>
                       <th className="pb-4 px-2">กำหนดเสร็จ</th>
@@ -914,8 +915,11 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E7EB]">
-                    {tasks.slice(0, 5).map((task) => (
+                    {tasks.slice(0, 10).map((task, index) => (
                       <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="py-4 px-2 text-xs font-bold text-[#6B7280]">
+                          {index + 1}
+                        </td>
                         <td className="py-4 px-2">
                           <p className="text-sm font-bold text-[#1A1A1A]">{task.taskName}</p>
                           <p className="text-[10px] text-[#6B7280]">{task.taskType}</p>
@@ -1070,6 +1074,7 @@ export default function App() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-[#F9FAFB] text-[#6B7280] text-xs font-bold uppercase tracking-wider">
+                    <th className="px-6 py-4">ลำดับ</th>
                     <th className="px-6 py-4">ชื่องาน / ประเภท</th>
                     <th className="px-6 py-4">หน่วยงาน / ผู้รับผิดชอบ</th>
                     <th className="px-6 py-4">ความถี่ / กำหนดเสร็จ</th>
@@ -1080,20 +1085,23 @@ export default function App() {
                 </thead>
                 <tbody className="divide-y divide-[#E5E7EB]">
                   {loading ? (
-                    <tr><td colSpan={6} className="text-center py-20 text-[#6B7280]">กำลังโหลดข้อมูล...</td></tr>
+                    <tr><td colSpan={7} className="text-center py-20 text-[#6B7280]">กำลังโหลดข้อมูล...</td></tr>
                   ) : Object.keys(groupedTasks).length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-20 text-[#6B7280]">ไม่พบข้อมูลรายการงาน</td></tr>
+                    <tr><td colSpan={7} className="text-center py-20 text-[#6B7280]">ไม่พบข้อมูลรายการงาน</td></tr>
                   ) : (Object.entries(groupedTasks) as [string, Task[]][]).map(([groupName, groupTasks]) => (
                     <React.Fragment key={groupName}>
                       {groupBy !== 'none' && (
                         <tr className="bg-[#F3F4F6]">
-                          <td colSpan={6} className="px-6 py-2 text-sm font-bold text-[#4B5563]">
+                          <td colSpan={7} className="px-6 py-2 text-sm font-bold text-[#4B5563]">
                             {groupName} ({groupTasks.length})
                           </td>
                         </tr>
                       )}
-                      {groupTasks.map((task) => (
+                      {groupTasks.map((task, index) => (
                         <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                          <td className="px-6 py-5 text-xs font-bold text-[#6B7280]">
+                            {index + 1}
+                          </td>
                           <td className="px-6 py-5">
                             <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
                             <div className="flex items-center gap-2 mt-1">
@@ -1186,11 +1194,16 @@ export default function App() {
                     </div>
                   )}
                   <div className="divide-y divide-[#E5E7EB]">
-                    {groupTasks.map((task) => (
+                    {groupTasks.map((task, index) => (
                       <div key={task.id} className="p-4 space-y-3">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <p className="font-bold text-[#1A1A1A] leading-tight">{task.taskName}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                                #{index + 1}
+                              </span>
+                              <p className="font-bold text-[#1A1A1A] leading-tight">{task.taskName}</p>
+                            </div>
                             <p className="text-[10px] text-[#6B7280] uppercase font-medium mt-1">{task.taskType}</p>
                           </div>
                           <span className={cn(
