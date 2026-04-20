@@ -489,21 +489,49 @@ export default function App() {
   }, [tasks, dashMonth, dashYear]);
 
   const overdueTasks = useMemo(() => {
-    return tasks.filter(t => t.status === 'ล่าช้า');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return tasks.filter(t => {
+      // 1. Already marked as delayed
+      if (t.status === 'ล่าช้า') return true;
+      
+      // 2. Not completed yet but already past deadline
+      if (t.status === 'รอดำเนินการ' && t.deadline) {
+        const deadlineDate = parseISO(t.deadline);
+        return isBefore(deadlineDate, today);
+      }
+      
+      return false;
+    });
   }, [tasks]);
 
   const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const tks = filteredDashTasks;
     const total = tks.length;
-    const pending = tks.filter(t => t.status === 'รอดำเนินการ').length;
+    
+    // Updated logic: delayed includes tasks past deadline even if still 'รอดำเนินการ'
+    const delayedTasksList = tks.filter(t => {
+      if (t.status === 'ล่าช้า') return true;
+      if (t.status === 'รอดำเนินการ' && t.deadline) {
+        return isBefore(parseISO(t.deadline), today);
+      }
+      return false;
+    });
+    
+    const delayed = delayedTasksList.length;
+    const pending = tks.filter(t => t.status === 'รอดำเนินการ' && !delayedTasksList.includes(t)).length;
     const early = tks.filter(t => t.status === 'ก่อนเวลา').length;
     const onTime = tks.filter(t => t.status === 'ตรงเวลา').length;
-    const delayed = tks.filter(t => t.status === 'ล่าช้า').length;
     
     return { total, pending, early, onTime, delayed };
   }, [filteredDashTasks]);
 
   const unitPerformance = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const perf: Record<string, { total: number, completed: number, delayed: number }> = {};
     
     filteredDashTasks.forEach(t => {
@@ -512,7 +540,10 @@ export default function App() {
         if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
         perf[u].total += 1;
         if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
-        if (t.status === 'ล่าช้า') perf[u].delayed += 1;
+        
+        // Match the overdue logic
+        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && t.deadline && isBefore(parseISO(t.deadline), today));
+        if (isActuallyDelayed) perf[u].delayed += 1;
       });
     });
 
@@ -1073,7 +1104,7 @@ export default function App() {
                           <td className="px-6 py-5">
                             <div className="flex justify-center">
                               <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-red-50 text-red-600 border-red-100">
-                                {task.status}
+                                {task.status === 'รอดำเนินการ' ? 'รอดำเนินการ (เกินกำหนด)' : task.status}
                               </span>
                             </div>
                           </td>
