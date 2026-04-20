@@ -21,7 +21,9 @@ import {
   Edit2,
   Trash2,
   Hash,
-  Download
+  Download,
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -143,7 +145,7 @@ const STATUS_COLORS = {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'overdue'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -486,6 +488,10 @@ export default function App() {
     });
   }, [tasks, dashMonth, dashYear]);
 
+  const overdueTasks = useMemo(() => {
+    return tasks.filter(t => t.status === 'ล่าช้า');
+  }, [tasks]);
+
   const stats = useMemo(() => {
     const tks = filteredDashTasks;
     const total = tks.length;
@@ -656,6 +662,26 @@ export default function App() {
             <ListTodo size={20} />
             <span className="font-medium">รายการงาน</span>
           </button>
+          <button 
+            onClick={() => { setActiveTab('overdue'); setIsSidebarOpen(false); }}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200",
+              activeTab === 'overdue' ? "bg-red-500 text-white shadow-md" : "text-[#6B7280] hover:bg-red-50 hover:text-red-600"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={20} />
+              <span className="font-medium">เกินกำหนด</span>
+            </div>
+            {overdueTasks.length > 0 && (
+              <span className={cn(
+                "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
+                activeTab === 'overdue' ? "bg-white text-red-500" : "bg-red-500 text-white"
+              )}>
+                {overdueTasks.length}
+              </span>
+            )}
+          </button>
         </nav>
 
         <div className="p-4 border-t border-[#E5E7EB]">
@@ -690,10 +716,12 @@ export default function App() {
             </button>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">
-                {activeTab === 'dashboard' ? 'ภาพรวมการดำเนินงาน' : 'จัดการรายการงาน'}
+                {activeTab === 'dashboard' ? 'ภาพรวมการดำเนินงาน' : 
+                 activeTab === 'overdue' ? 'รายการงานเกินกำหนด' : 'จัดการรายการงาน'}
               </h1>
               <p className="text-sm md:text-base text-[#6B7280] mt-1">
-                {activeTab === 'dashboard' ? 'สรุปสถานะงานของทุกหน่วยงาน' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
+                {activeTab === 'dashboard' ? 'สรุปสถานะงานของทุกหน่วยงาน' : 
+                 activeTab === 'overdue' ? 'งานที่รอดำเนินการและเกินกำหนดแล้วเสร็จ' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
               </p>
             </div>
           </div>
@@ -716,6 +744,20 @@ export default function App() {
                 </button>
               </>
             )}
+            <button 
+              onClick={() => setActiveTab('overdue')}
+              className={cn(
+                "p-3 rounded-xl transition-all relative shadow-sm border",
+                activeTab === 'overdue' ? "bg-red-50 text-red-600 border-red-200" : "bg-white text-[#6B7280] border-[#E5E7EB] hover:bg-[#F9FAFB]"
+              )}
+            >
+              <Bell size={20} />
+              {overdueTasks.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  {overdueTasks.length}
+                </span>
+              )}
+            </button>
             <button className="p-3 bg-white border border-[#E5E7EB] rounded-xl text-[#6B7280] hover:bg-[#F9FAFB] transition-colors shadow-sm">
               <Settings size={20} />
             </button>
@@ -762,7 +804,14 @@ export default function App() {
               <StatCard icon={<Clock />} label="รอดำเนินการ" value={stats.pending} unit="ยังไม่เสร็จ" color="amber" />
               <StatCard icon={<CheckCircle2 />} label="ก่อนเวลา" value={stats.early} unit="ประสิทธิภาพดี" color="emerald" />
               <StatCard icon={<CheckCircle2 />} label="ตรงเวลา" value={stats.onTime} unit="ตามแผนงาน" color="blue" />
-              <StatCard icon={<AlertCircle />} label="ล่าช้า" value={stats.delayed} unit="ต้องเร่งรัด" color="red" />
+              <StatCard 
+                icon={<AlertCircle />} 
+                label="ล่าช้า" 
+                value={stats.delayed} 
+                unit="ต้องเร่งรัด" 
+                color="red" 
+                onClick={() => setActiveTab('overdue')}
+              />
             </div>
 
             {/* Charts Grid */}
@@ -950,6 +999,100 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        ) : activeTab === 'overdue' ? (
+          <div className="space-y-6">
+            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-[#E5E7EB]">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center shadow-inner">
+                    <AlertTriangle size={32} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">รายการงานที่เกินกำหนดแล้วเสร็จ</h2>
+                    <p className="text-sm md:text-base text-[#6B7280]">ตรวจพบรายการที่ยังไม่สำเร็จและเลยกำหนดส่ง ({overdueTasks.length} รายการ)</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('tasks')}
+                  className="px-6 py-2.5 bg-[#F3F4F6] text-[#4B5563] rounded-xl font-bold hover:bg-[#E5E7EB] transition-colors flex items-center gap-2"
+                >
+                  <ListTodo size={18} />
+                  จัดการงานทั้งหมด
+                </button>
+              </div>
+
+              {overdueTasks.length === 0 ? (
+                <div className="py-24 text-center">
+                  <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-emerald-100">
+                    <CheckCircle2 size={40} />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">ยอดเยี่ยม! ไม่มีงานค้างเกินกำหนด</h3>
+                  <p className="text-[#6B7280]">คุณจัดการงานได้ตรงตามแผนงานทั้งหมด</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-6 md:mx-0">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] text-[#6B7280] text-xs font-bold uppercase tracking-wider">
+                        <th className="px-6 py-4 rounded-tl-2xl">ลำดับ</th>
+                        <th className="px-6 py-4">ชื่องาน / ประเภท</th>
+                        <th className="px-6 py-4">หน่วยงาน / ผู้รับผิดชอบ</th>
+                        <th className="px-6 py-4">กำหนดเสร็จ</th>
+                        <th className="px-6 py-4 text-center">สถานะ</th>
+                        <th className="px-6 py-4 text-right rounded-tr-2xl">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E7EB]">
+                      {overdueTasks.map((task, index) => (
+                        <tr key={task.id} className="hover:bg-red-50/30 transition-colors group">
+                          <td className="px-6 py-5 text-sm font-bold text-[#6B7280]">
+                            {index + 1}
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
+                            <p className="text-[10px] text-[#6B7280] uppercase font-medium mt-1">{task.taskType}</p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <p className="text-xs font-medium text-[#4B5563] truncate max-w-[200px]">{task.unit}</p>
+                            <p className="text-[10px] text-[#6B7280] mt-1 uppercase font-medium">{task.responsible}</p>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold text-red-600">
+                                {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                              </span>
+                              {task.deadline && (
+                                <span className="text-[10px] text-red-400 font-medium">
+                                  เกินกำหนด {differenceInDays(new Date(), parseISO(task.deadline))} วัน
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex justify-center">
+                              <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-red-50 text-red-600 border-red-100">
+                                {task.status}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => { setEditingTask(task); setIsModalOpen(true); }}
+                                className="p-2 text-[#6B7280] hover:text-[#9333EA] hover:bg-purple-50 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1743,7 +1886,14 @@ export default function App() {
   );
 }
 
-function StatCard({ icon, label, value, unit, color }: { icon: React.ReactNode, label: string, value: number, unit: string, color: 'purple' | 'amber' | 'emerald' | 'blue' | 'red' }) {
+function StatCard({ icon, label, value, unit, color, onClick }: { 
+  icon: React.ReactNode, 
+  label: string, 
+  value: number, 
+  unit: string, 
+  color: 'purple' | 'amber' | 'emerald' | 'blue' | 'red',
+  onClick?: () => void 
+}) {
   const colors = {
     purple: 'bg-purple-50 text-purple-600',
     amber: 'bg-amber-50 text-amber-600',
@@ -1753,7 +1903,13 @@ function StatCard({ icon, label, value, unit, color }: { icon: React.ReactNode, 
   };
 
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#E5E7EB] flex flex-col gap-4">
+    <div 
+      onClick={onClick}
+      className={cn(
+        "bg-white p-6 rounded-3xl shadow-sm border border-[#E5E7EB] flex flex-col gap-4 transition-all",
+        onClick && "cursor-pointer hover:border-purple-200 hover:shadow-md active:scale-95"
+      )}
+    >
       <div className="flex items-center gap-3">
         <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", colors[color])}>
           {React.cloneElement(icon as React.ReactElement, { size: 20 })}
