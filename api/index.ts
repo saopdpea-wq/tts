@@ -171,7 +171,7 @@ async function getDoc() {
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "หน่วยย่อย", "ผู้รับผิดชอบ", "ความถี่", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
       const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
@@ -227,7 +227,6 @@ app.get("/api/tasks", async (req, res) => {
       id: row.get("รหัส"),
       taskName: row.get("ชื่องาน"),
       unit: row.get("หน่วยงาน"),
-      subUnit: row.get("หน่วยย่อย"),
       responsible: row.get("ผู้รับผิดชอบ"),
       frequency: row.get("ความถี่"),
       taskType: row.get("ประเภทงาน"),
@@ -270,7 +269,6 @@ app.post("/api/tasks", async (req, res) => {
         "รหัส": taskId,
         "ชื่องาน": req.body.taskName,
         "หน่วยงาน": unit,
-        "หน่วยย่อย": req.body.subUnit || "",
         "ผู้รับผิดชอบ": req.body.responsible,
         "ความถี่": req.body.frequency,
         "ประเภทงาน": req.body.taskType,
@@ -310,7 +308,6 @@ app.post("/api/tasks", async (req, res) => {
       id: newTask["รหัส"],
       taskName: newTask["ชื่องาน"],
       unit: newTask["หน่วยงาน"],
-      subUnit: newTask["หน่วยย่อย"],
       responsible: newTask["ผู้รับผิดชอบ"],
       frequency: newTask["ความถี่"],
       taskType: newTask["ประเภทงาน"],
@@ -343,7 +340,6 @@ app.put("/api/tasks/:id", async (req, res) => {
       const mapping: Record<string, string> = {
         taskName: "ชื่องาน",
         unit: "หน่วยงาน",
-        subUnit: "หน่วยย่อย",
         responsible: "ผู้รับผิดชอบ",
         frequency: "ความถี่",
         taskType: "ประเภทงาน",
