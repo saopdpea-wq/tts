@@ -485,7 +485,8 @@ export default function App() {
   const filteredDashTasks = useMemo(() => {
     return tasks.filter(t => {
       const d = parseISO(t.createdAt);
-      const matchesMonth = dashMonth === 'all' || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
+      const isYearly = dashMonth === 'all' || dashMonth === 'yearly';
+      const matchesMonth = isYearly || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
       const matchesYear = dashYear === 'all' || d.getFullYear().toString() === dashYear;
       return matchesMonth && matchesYear;
     });
@@ -817,6 +818,7 @@ export default function App() {
                     const m = (i + 1).toString().padStart(2, '0');
                     return <option key={m} value={m}>{format(new Date(2024, i, 1), 'MMMM', { locale: th })}</option>;
                   })}
+                  <option value="yearly">ดูภาพรวมรายปี (ม.ค. - ธ.ค.)</option>
                 </select>
                 <select 
                   value={dashYear}
