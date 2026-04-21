@@ -226,7 +226,10 @@ export default function App() {
         throw new Error(data.error || 'ไม่สามารถดึงข้อมูลได้');
       }
       
-      setTasks(Array.isArray(data) ? data : []);
+      const sortedData = (Array.isArray(data) ? data : []).sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      setTasks(sortedData);
     } catch (err: any) {
       console.error('Failed to fetch tasks', err);
       // Don't alert on initial load to avoid annoying popups if not configured yet
@@ -440,7 +443,7 @@ export default function App() {
 
   const handleExportExcel = () => {
     const exportData = filteredTasks.map((task, index) => ({
-      'ลำดับ': index + 1,
+      'ลำดับ': filteredTasks.length - index,
       'ชื่องาน': task.taskName,
       'ประเภทงาน': task.taskType,
       'หน่วยงานที่รับผิดชอบ': task.unit,
@@ -998,7 +1001,7 @@ export default function App() {
                     {tasks.slice(0, 10).map((task, index) => (
                       <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="py-4 px-2 text-xs font-bold text-[#6B7280]">
-                          {index + 1}
+                          {tasks.length - index}
                         </td>
                         <td className="py-4 px-2">
                           <p className="text-sm font-bold text-[#1A1A1A]">{task.taskName}</p>
@@ -1079,7 +1082,7 @@ export default function App() {
                       {overdueTasks.map((task, index) => (
                         <tr key={task.id} className="hover:bg-red-50/30 transition-colors group">
                           <td className="px-6 py-5 text-sm font-bold text-[#6B7280]">
-                            {index + 1}
+                            {overdueTasks.length - index}
                           </td>
                           <td className="px-6 py-5">
                             <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
@@ -1274,7 +1277,7 @@ export default function App() {
                       {groupTasks.map((task, index) => (
                         <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors group">
                           <td className="px-6 py-5 text-xs font-bold text-[#6B7280]">
-                            {index + 1}
+                            {filteredTasks.length - filteredTasks.indexOf(task)}
                           </td>
                           <td className="px-6 py-5">
                             <p className="font-bold text-[#1A1A1A]">{task.taskName}</p>
@@ -1374,7 +1377,7 @@ export default function App() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
-                                #{index + 1}
+                                #{filteredTasks.length - filteredTasks.indexOf(task)}
                               </span>
                               <p className="font-bold text-[#1A1A1A] leading-tight">{task.taskName}</p>
                             </div>
