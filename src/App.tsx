@@ -23,7 +23,8 @@ import {
   Hash,
   Download,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  Grid2X2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -66,6 +67,7 @@ interface Task {
   attachments?: string; // Google Drive link
   groupId?: string; // To track linked tasks
   createdAt: string;
+  eisenhower?: 'Q1' | 'Q2' | 'Q3' | 'Q4';
 }
 
 const UNITS = [
@@ -143,9 +145,51 @@ const STATUS_COLORS = {
   'รอดำเนินการ': '#f59e0b'
 };
 
+const EisenhowerTaskCard = ({ task, onMove }: any) => {
+  const [showOptions, setShowOptions] = useState(false);
+
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group relative">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm text-gray-900 leading-tight mb-1 truncate">{task.taskName}</p>
+          <div className="flex items-center gap-2 text-[10px] text-gray-500 font-medium">
+            <span className="truncate">{task.unit}</span>
+            <span>•</span>
+            <span>{task.deadline ? format(parseISO(task.deadline), 'dd/MM/yy') : 'ไม่กำหนด'}</span>
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowOptions(!showOptions)}
+          className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-400"
+        >
+          <MoreVertical size={14} />
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showOptions && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute right-4 top-12 z-10 bg-white border border-gray-100 shadow-xl rounded-xl p-2 min-w-[200px]"
+          >
+            <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase tracking-wider">ย้ายลงช่อง</p>
+            <button onClick={() => { onMove('Q1'); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-red-50 text-red-600 rounded-lg">Q1: ด่วน & สำคัญ</button>
+            <button onClick={() => { onMove('Q2'); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-emerald-50 text-emerald-600 rounded-lg">Q2: ไม่ด่วน & สำคัญ</button>
+            <button onClick={() => { onMove('Q3'); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-orange-50 text-orange-600 rounded-lg">Q3: ด่วน & ไม่สำคัญ</button>
+            <button onClick={() => { onMove('Q4'); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 text-gray-600 rounded-lg">Q4: ไม่ด่วน & ไม่สำคัญ</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'overdue'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'overdue' | 'eisenhower'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -375,6 +419,19 @@ export default function App() {
       fetchTasks();
     } catch (err) {
       console.error('Failed to delete task', err);
+    }
+  };
+
+  const handleUpdateEisenhower = async (taskId: string, quadrant: 'Q1' | 'Q2' | 'Q3' | 'Q4' | '') => {
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eisenhower: quadrant })
+      });
+      fetchTasks();
+    } catch (err) {
+      console.error('Failed to update eisenhower quadrant', err);
     }
   };
 
@@ -698,6 +755,16 @@ export default function App() {
             <span className="font-medium">รายการงาน</span>
           </button>
           <button 
+            onClick={() => { setActiveTab('eisenhower'); setIsSidebarOpen(false); }}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+              activeTab === 'eisenhower' ? "bg-[#9333EA] text-white shadow-md" : "text-[#6B7280] hover:bg-[#F3F4F6]"
+            )}
+          >
+            <Grid2X2 size={20} />
+            <span className="font-medium">Eisenhower Matrix</span>
+          </button>
+          <button 
             onClick={() => { setActiveTab('overdue'); setIsSidebarOpen(false); }}
             className={cn(
               "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200",
@@ -752,11 +819,13 @@ export default function App() {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-[#1A1A1A]">
                 {activeTab === 'dashboard' ? 'ภาพรวมการดำเนินงาน' : 
-                 activeTab === 'overdue' ? 'รายการงานเกินกำหนด' : 'จัดการรายการงาน'}
+                 activeTab === 'overdue' ? 'รายการงานเกินกำหนด' : 
+                 activeTab === 'eisenhower' ? 'ลำดับความสำคัญ (Eisenhower Matrix)' : 'จัดการรายการงาน'}
               </h1>
               <p className="text-sm md:text-base text-[#6B7280] mt-1">
                 {activeTab === 'dashboard' ? 'สรุปสถานะงานของทุกหน่วยงาน' : 
-                 activeTab === 'overdue' ? 'งานที่รอดำเนินการและเกินกำหนดแล้วเสร็จ' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
+                 activeTab === 'overdue' ? 'งานที่รอดำเนินการและเกินกำหนดแล้วเสร็จ' : 
+                 activeTab === 'eisenhower' ? 'จัดลำดับความสำคัญของงานตามความด่วนและความสำคัญ' : 'เพิ่ม แก้ไข และติดตามสถานะงานรายหน่วย'}
               </p>
             </div>
           </div>
@@ -1129,6 +1198,102 @@ export default function App() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        ) : activeTab === 'eisenhower' ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full min-h-[600px]">
+              {/* Q1: Urgent & Important */}
+              <div className="bg-[#FFF1F2] p-6 rounded-3xl border-2 border-red-100 shadow-sm flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-white text-red-600 rounded-xl flex items-center justify-center shadow-sm">
+                    <Hash size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-red-700">Q1: ด่วน & สำคัญ</h3>
+                    <p className="text-xs text-red-500 font-medium">(Do First - ต้องทำทันที)</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-thin">
+                  {tasks.filter(t => t.eisenhower === 'Q1' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').map(task => (
+                    <EisenhowerTaskCard key={task.id} task={task} onMove={(q) => handleUpdateEisenhower(task.id, q)} />
+                  ))}
+                  {tasks.filter(t => t.eisenhower === 'Q1' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').length === 0 && (
+                    <div className="h-full flex items-center justify-center text-red-300 text-sm italic border-2 border-dashed border-red-100 rounded-2xl py-8 bg-white/50">
+                      ไม่มีงานในส่วนนี้
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Q2: Not Urgent & Important */}
+              <div className="bg-[#F0FDF4] p-6 rounded-3xl border-2 border-emerald-100 shadow-sm flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-white text-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-emerald-700">Q2: ไม่ด่วน & สำคัญ</h3>
+                    <p className="text-xs text-emerald-500 font-medium">(Schedule - วางแผนทำ)</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-thin">
+                  {tasks.filter(t => t.eisenhower === 'Q2' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').map(task => (
+                    <EisenhowerTaskCard key={task.id} task={task} onMove={(q) => handleUpdateEisenhower(task.id, q)} />
+                  ))}
+                  {tasks.filter(t => t.eisenhower === 'Q2' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').length === 0 && (
+                    <div className="h-full flex items-center justify-center text-emerald-300 text-sm italic border-2 border-dashed border-emerald-100 rounded-2xl py-8 bg-white/50">
+                      ไม่มีงานในส่วนนี้
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Q3: Urgent & Not Important */}
+              <div className="bg-[#FFF7ED] p-6 rounded-3xl border-2 border-orange-100 shadow-sm flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-white text-orange-600 rounded-xl flex items-center justify-center shadow-sm">
+                    <ArrowUpRight size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-orange-700">Q3: ด่วน & ไม่สำคัญ</h3>
+                    <p className="text-xs text-orange-500 font-medium">(Delegate - มอบหมายผู้อื่น)</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-thin">
+                  {tasks.filter(t => t.eisenhower === 'Q3' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').map(task => (
+                    <EisenhowerTaskCard key={task.id} task={task} onMove={(q) => handleUpdateEisenhower(task.id, q)} />
+                  ))}
+                  {tasks.filter(t => t.eisenhower === 'Q3' && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').length === 0 && (
+                    <div className="h-full flex items-center justify-center text-orange-300 text-sm italic border-2 border-dashed border-orange-100 rounded-2xl py-8 bg-white/50">
+                      ไม่มีงานในส่วนนี้
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Q4: Not Urgent & Not Important */}
+              <div className="bg-[#F9FAFB] p-6 rounded-3xl border-2 border-gray-100 shadow-sm flex flex-col">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-white text-gray-600 rounded-xl flex items-center justify-center shadow-sm">
+                    <Trash2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-700">Q4: ไม่ด่วน & ไม่สำคัญ</h3>
+                    <p className="text-xs text-gray-500 font-medium">(Eliminate - ทำภายหลัง/ตัดออก)</p>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 scrollbar-thin">
+                  {tasks.filter(t => (t.eisenhower === 'Q4' || !t.eisenhower) && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').map(task => (
+                    <EisenhowerTaskCard key={task.id} task={task} onMove={(q) => handleUpdateEisenhower(task.id, q)} />
+                  ))}
+                  {tasks.filter(t => (t.eisenhower === 'Q4' || !t.eisenhower) && t.status !== 'ตรงเวลา' && t.status !== 'ก่อนเวลา').length === 0 && (
+                    <div className="h-full flex items-center justify-center text-gray-300 text-sm italic border-2 border-dashed border-gray-100 rounded-2xl py-8 bg-white/50">
+                      ไม่มีงานในส่วนนี้
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -1778,6 +1943,21 @@ export default function App() {
                       placeholder="ระบุชื่อผู้รับผิดชอบ..."
                       className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6B7280] uppercase tracking-wider">
+                      Eisenhower Quadrant
+                    </label>
+                    <select 
+                      name="eisenhower"
+                      defaultValue={editingTask?.eisenhower || 'Q4'}
+                      className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                    >
+                      <option value="Q1">Q1: ด่วน & สำคัญ (Do First)</option>
+                      <option value="Q2">Q2: ไม่ด่วน & สำคัญ (Schedule)</option>
+                      <option value="Q3">Q3: ด่วน & ไม่สำคัญ (Delegate)</option>
+                      <option value="Q4">Q4: ไม่ด่วน & ไม่สำคัญ (Eliminate)</option>
+                    </select>
                   </div>
                 </div>
 

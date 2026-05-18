@@ -171,7 +171,7 @@ async function getDoc() {
     await doc.loadInfo();
 
     if (!isInitialized) {
-      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง"];
+      const taskHeaders = ["รหัส", "ชื่องาน", "หน่วยงาน", "ผู้รับผิดชอบ", "ความถี่", "ประเภทงาน", "ขั้นตอนการดำเนินงาน", "กำหนดแล้วเสร็จ", "ทำเสร็จจริง", "ล่าช้า (วัน)", "สถานะ", "หมายเหตุ", "ไฟล์แนบ", "รหัสกลุ่มงาน", "วันที่สร้าง", "Eisenhower"];
       const logHeaders = ["วันเวลา", "อีเมลผู้ใช้", "การกระทำ", "รายละเอียด"];
 
       // ตรวจสอบและจัดการแผ่นงาน Tasks
@@ -239,6 +239,7 @@ app.get("/api/tasks", async (req, res) => {
       attachments: row.get("ไฟล์แนบ"),
       groupId: row.get("รหัสกลุ่มงาน"),
       createdAt: row.get("วันที่สร้าง"),
+      eisenhower: row.get("Eisenhower"),
     }));
     res.json(tasks);
   } catch (error: any) {
@@ -281,6 +282,7 @@ app.post("/api/tasks", async (req, res) => {
         "ไฟล์แนบ": req.body.attachments,
         "รหัสกลุ่มงาน": baseGroupId,
         "วันที่สร้าง": createdAt,
+        "Eisenhower": req.body.eisenhower || "Q4",
       };
       
       tasksToCreate.push(newTask);
@@ -320,6 +322,7 @@ app.post("/api/tasks", async (req, res) => {
       attachments: newTask["ไฟล์แนบ"],
       groupId: newTask["รหัสกลุ่มงาน"],
       createdAt: newTask["วันที่สร้าง"],
+      eisenhower: newTask["Eisenhower"],
     }));
 
     res.json(createdTasks.length === 1 ? createdTasks[0] : createdTasks);
@@ -351,6 +354,7 @@ app.put("/api/tasks/:id", async (req, res) => {
         remarks: "หมายเหตุ",
         attachments: "ไฟล์แนบ",
         groupId: "รหัสกลุ่มงาน",
+        eisenhower: "Eisenhower",
       };
 
       Object.keys(req.body).forEach(key => {
