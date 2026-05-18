@@ -247,7 +247,12 @@ export default function App() {
         throw new Error(data.error || 'ไม่สามารถดึงข้อมูลได้');
       }
       
-      const sortedData = (Array.isArray(data) ? data : []).sort((a, b) => {
+      const normalizedData = (Array.isArray(data) ? data : []).map(task => ({
+        ...task,
+        status: task.status === '0' || !task.status ? 'รอดำเนินการ' : task.status
+      }));
+
+      const sortedData = normalizedData.sort((a, b) => {
         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
@@ -313,21 +318,21 @@ export default function App() {
       }
     }
 
-    const units = taskData.unit ? taskData.unit.split(', ').filter(Boolean) : [];
-    const baseGroupId = taskData.groupId || `G-${Date.now()}`;
+    const units = taskData.unit ? (taskData.unit as string).split(', ').filter(Boolean) : [];
+    const baseGroupId = (taskData.groupId as string) || `G-${Date.now()}`;
 
-    let status: Task['status'] = 'รอดำเนินการ';
-    let delayDays = '0';
+    let statusValue: Task['status'] = 'รอดำเนินการ';
+    let delayDaysValue = '0';
     
     if (taskData.actualCompletion && taskData.deadline) {
-      const actual = parseISO(taskData.actualCompletion);
-      const deadline = parseISO(taskData.deadline);
+      const actual = parseISO(taskData.actualCompletion as string);
+      const deadline = parseISO(taskData.deadline as string);
       const diff = differenceInDays(actual, deadline);
-      delayDays = diff.toString();
+      delayDaysValue = diff.toString();
       
-      if (diff < 0) status = 'ก่อนเวลา';
-      else if (diff === 0) status = 'ตรงเวลา';
-      else status = 'ล่าช้า';
+      if (diff < 0) statusValue = 'ก่อนเวลา';
+      else if (diff === 0) statusValue = 'ตรงเวลา';
+      else statusValue = 'ล่าช้า';
     }
 
     if (!editingTask) {
@@ -339,7 +344,7 @@ export default function App() {
             'Content-Type': 'application/json',
             'x-user-email': employeeId
           },
-          body: JSON.stringify({ ...taskData, units, status, delayDays, attachments, groupId: baseGroupId })
+          body: JSON.stringify({ ...taskData, units, status: statusValue, delayDays: delayDaysValue, attachments, groupId: baseGroupId })
         });
         
         if (!res.ok) {
@@ -369,7 +374,7 @@ export default function App() {
             'Content-Type': 'application/json',
             'x-user-email': employeeId
           },
-          body: JSON.stringify({ ...taskData, status, delayDays, attachments })
+          body: JSON.stringify({ ...taskData, status: statusValue, delayDays: delayDaysValue, attachments })
         });
         
         if (!res.ok) {
@@ -1343,15 +1348,20 @@ export default function App() {
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex justify-center">
-                              <span className={cn(
-                                "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                                task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
-                                "bg-amber-50 text-amber-600 border-amber-100"
-                              )}>
-                                {task.status}
-                              </span>
+                              {(() => {
+                                const displayStatus = task.status === '0' || !task.status ? 'รอดำเนินการ' : task.status;
+                                return (
+                                  <span className={cn(
+                                    "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                                    displayStatus === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                    displayStatus === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                    displayStatus === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                                    "bg-amber-50 text-amber-600 border-amber-100"
+                                  )}>
+                                    {displayStatus}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="px-6 py-5 text-right">
