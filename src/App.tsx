@@ -51,13 +51,36 @@ function cn(...inputs: ClassValue[]) {
 
 // Date formatting and parsing helpers
 const safeParseDate = (dateStr: string | null | undefined) => {
-  if (!dateStr) return null;
-  // 1. Try ISO
+  if (!dateStr || dateStr === '-') return null;
+  
+  // 1. Try ISO format (YYYY-MM-DD...)
   const d = parseISO(dateStr);
   if (isValid(d)) return d;
-  // 2. Try standard JS parsing (supports more formats)
-  const d2 = new Date(dateStr);
-  if (isValid(d2)) return d2;
+  
+  // 2. Try DD/MM/YYYY format (standard in this app's spreadsheet)
+  if (typeof dateStr === 'string' && dateStr.includes('/')) {
+    const parts = dateStr.split(' ')[0].split('/'); // Handle "DD/MM/YYYY HH:MM:SS"
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      let year = parseInt(parts[2], 10);
+      // Handle Thai Buddhist Era (BE)
+      if (year > 2400) year -= 543;
+      const d2 = new Date(year, month, day);
+      if (isValid(d2)) return d2;
+    }
+  }
+
+  // 3. Try standard JS parsing (supports more formats)
+  let d3 = new Date(dateStr);
+  if (isValid(d3)) {
+    // Also handle BE in standard JS parsing if year > 2400
+    if (d3.getFullYear() > 2400) {
+      d3 = new Date(d3.getFullYear() - 543, d3.getMonth(), d3.getDate());
+    }
+    return d3;
+  }
+  
   return null;
 };
 
@@ -548,8 +571,9 @@ export default function App() {
     
     // Updated logic: delayed includes tasks past deadline even if still 'รอดำเนินการ'
     const delayedTasksList = tks.filter(t => {
-      if (t.status === 'ล่าช้า') return true;
-      if (t.status === 'รอดำเนินการ' && t.deadline) {
+      const status = (t.status || '').trim();
+      if (status === 'ล่าช้า') return true;
+      if (status === 'รอดำเนินการ' && t.deadline) {
         const d = safeParseDate(t.deadline);
         return d && isBefore(d, today);
       }
@@ -557,9 +581,12 @@ export default function App() {
     });
     
     const delayed = delayedTasksList.length;
-    const pending = tks.filter(t => t.status === 'รอดำเนินการ' && !delayedTasksList.includes(t)).length;
-    const early = tks.filter(t => t.status === 'ก่อนเวลา').length;
-    const onTime = tks.filter(t => t.status === 'ตรงเวลา').length;
+    const pending = tks.filter(t => {
+      const status = (t.status || '').trim();
+      return status === 'รอดำเนินการ' && !delayedTasksList.includes(t);
+    }).length;
+    const early = tks.filter(t => (t.status || '').trim() === 'ก่อนเวลา').length;
+    const onTime = tks.filter(t => (t.status || '').trim() === 'ตรงเวลา').length;
     
     return { total, pending, early, onTime, delayed };
   }, [filteredDashTasks]);
@@ -571,14 +598,15 @@ export default function App() {
     
     filteredDashTasks.forEach(t => {
       const units = (t.unit || '').split(',').map(u => u.trim()).filter(Boolean);
+      const status = (t.status || '').trim();
       units.forEach(u => {
         if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
         perf[u].total += 1;
-        if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
+        if (status !== 'รอดำเนินการ') perf[u].completed += 1;
         
         // Match the overdue logic
         const deadlineDate = safeParseDate(t.deadline);
-        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && deadlineDate && isBefore(deadlineDate, today));
+        const isActuallyDelayed = status === 'ล่าช้า' || (status === 'รอดำเนินการ' && deadlineDate && isBefore(deadlineDate, today));
         if (isActuallyDelayed) perf[u].delayed += 1;
       });
     });

@@ -238,7 +238,7 @@ app.get("/api/tasks", async (req, res) => {
       remarks: row.get("หมายเหตุ") || "",
       attachments: row.get("ไฟล์แนบ") || "",
       groupId: row.get("รหัสกลุ่มงาน") || "",
-      createdAt: row.get("วันที่สร้าง") || "",
+      createdAt: row.get("วันที่สร้าง") || row.get("กำหนดแล้วเสร็จ") || "",
     }));
     res.json(tasks);
   } catch (error: any) {
