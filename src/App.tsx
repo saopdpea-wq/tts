@@ -564,7 +564,9 @@ export default function App() {
   // Dashboard Stats
   const filteredDashTasks = useMemo(() => {
     return tasks.filter(t => {
-      const d = parseISO(t.createdAt);
+      const d = safeParseISO(t.createdAt);
+      if (!d) return dashMonth === 'all' || dashMonth === 'yearly';
+      
       const isYearly = dashMonth === 'all' || dashMonth === 'yearly';
       const matchesMonth = isYearly || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
       const matchesYear = dashYear === 'all' || d.getFullYear().toString() === dashYear;
@@ -582,7 +584,8 @@ export default function App() {
       
       // 2. Not completed yet but already past deadline
       if (t.status === 'รอดำเนินการ' && t.deadline) {
-        const deadlineDate = parseISO(t.deadline);
+        const deadlineDate = safeParseISO(t.deadline);
+        if (!deadlineDate) return false;
         return isBefore(deadlineDate, today);
       }
       
@@ -600,7 +603,8 @@ export default function App() {
     const delayedTasksList = tks.filter(t => {
       if (t.status === 'ล่าช้า') return true;
       if (t.status === 'รอดำเนินการ' && t.deadline) {
-        return isBefore(parseISO(t.deadline), today);
+        const deadlineDate = safeParseISO(t.deadline);
+        if (deadlineDate) return isBefore(deadlineDate, today);
       }
       return false;
     });
@@ -619,14 +623,16 @@ export default function App() {
     const perf: Record<string, { total: number, completed: number, delayed: number }> = {};
     
     filteredDashTasks.forEach(t => {
-      const units = t.unit.split(',').map(u => u.trim());
+      if (!t.unit) return;
+      const units = t.unit.split(',').map(u => u.trim()).filter(Boolean);
       units.forEach(u => {
         if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
         perf[u].total += 1;
         if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
         
         // Match the overdue logic
-        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && t.deadline && isBefore(parseISO(t.deadline), today));
+        const deadlineDate = t.deadline ? safeParseISO(t.deadline) : null;
+        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && deadlineDate && isBefore(deadlineDate, today));
         if (isActuallyDelayed) perf[u].delayed += 1;
       });
     });
@@ -649,7 +655,8 @@ export default function App() {
     return last12Months.map(month => {
       const monthStr = format(month, 'MMM yy', { locale: th });
       const monthTasks = tasks.filter(t => {
-        const d = parseISO(t.createdAt);
+        const d = safeParseISO(t.createdAt);
+        if (!d) return false;
         return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear();
       });
       return {
