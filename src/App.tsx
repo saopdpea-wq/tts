@@ -44,6 +44,27 @@ import { th } from 'date-fns/locale';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+// Safe date helpers
+function safeParseISO(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  try {
+    const d = parseISO(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+function safeFormat(dateStr: string | null | undefined, formatStr: string): string {
+  const d = safeParseISO(dateStr);
+  if (!d) return '-';
+  try {
+    return format(d, formatStr, { locale: th });
+  } catch {
+    return '-';
+  }
+}
+
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -227,7 +248,9 @@ export default function App() {
       }
       
       const sortedData = (Array.isArray(data) ? data : []).sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
       });
       setTasks(sortedData);
     } catch (err: any) {
@@ -450,8 +473,8 @@ export default function App() {
       'สถานีไฟฟ้า / แผนก': task.unit, // In this app, unit and station are mixed in the same field
       'ความถี่': task.frequency,
       'ผู้รับผิดชอบ': task.responsible,
-      'กำหนดแล้วเสร็จ': task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-',
-      'ทำเสร็จจริง': task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-',
+      'กำหนดแล้วเสร็จ': safeFormat(task.deadline, 'dd/MM/yyyy'),
+      'ทำเสร็จจริง': safeFormat(task.actualCompletion, 'dd/MM/yyyy'),
       'Update ขั้นตอนการดำเนินงานอย่างละเอียด': task.progress || '-',
       'หมายเหตุ': task.remarks || '-',
       'ไฟล์แนบ': task.attachments || '-'
@@ -1014,7 +1037,7 @@ export default function App() {
                         </td>
                         <td className="py-4 px-2">
                           <p className="text-xs text-[#4B5563]">
-                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                            {safeFormat(task.deadline, 'dd/MM/yyyy')}
                           </p>
                         </td>
                         <td className="py-4 px-2">
@@ -1097,11 +1120,14 @@ export default function App() {
                           <td className="px-6 py-5">
                             <div className="flex flex-col">
                               <span className="text-xs font-bold text-red-600">
-                                {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                                {safeFormat(task.deadline, 'dd/MM/yyyy')}
                               </span>
                               {task.deadline && (
                                 <span className="text-[10px] text-red-400 font-medium">
-                                  เกินกำหนด {differenceInDays(new Date(), parseISO(task.deadline))} วัน
+                                  เกินกำหนด {(() => {
+                                    const d = safeParseISO(task.deadline);
+                                    return d ? differenceInDays(new Date(), d) : '?';
+                                  })()} วัน
                                 </span>
                               )}
                             </div>
@@ -1299,7 +1325,7 @@ export default function App() {
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium">{task.frequency}</p>
                             <p className="text-[10px] text-[#6B7280] mt-1">
-                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                              {safeFormat(task.deadline, 'dd/MM/yyyy')}
                             </p>
                           </td>
                           <td className="px-6 py-5">
@@ -1404,7 +1430,7 @@ export default function App() {
                           <div>
                             <p className="text-[#6B7280] uppercase font-bold text-[9px]">กำหนดเสร็จ</p>
                             <p className="font-medium text-[#4B5563]">
-                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                              {safeFormat(task.deadline, 'dd/MM/yyyy')}
                             </p>
                           </div>
                         </div>
@@ -1533,10 +1559,10 @@ export default function App() {
                             <p className="text-[10px] text-[#6B7280] uppercase">{task.taskType}</p>
                           </td>
                           <td className="px-6 py-4 text-xs">
-                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
+                            {safeFormat(task.deadline, 'dd/MM/yyyy')}
                           </td>
                           <td className="px-6 py-4 text-xs">
-                            {task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-'}
+                            {safeFormat(task.actualCompletion, 'dd/MM/yyyy')}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex justify-center">
