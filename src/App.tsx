@@ -358,15 +358,29 @@ export default function App() {
     let statusValue: Task['status'] = 'รอดำเนินการ';
     let delayDaysValue = '0';
     
-    if (taskData.actualCompletion && taskData.deadline) {
-      const actual = parseISO(taskData.actualCompletion as string);
-      const deadline = parseISO(taskData.deadline as string);
-      const diff = differenceInDays(actual, deadline);
-      delayDaysValue = diff.toString();
+    if (taskData.deadline) {
+      const deadline = safeParseISO(taskData.deadline as string);
       
-      if (diff < 0) statusValue = 'ก่อนเวลา';
-      else if (diff === 0) statusValue = 'ตรงเวลา';
-      else statusValue = 'ล่าช้า';
+      if (taskData.actualCompletion) {
+        const actual = safeParseISO(taskData.actualCompletion as string);
+        if (actual && deadline) {
+          const diff = differenceInDays(actual, deadline);
+          delayDaysValue = diff.toString();
+          
+          if (diff < 0) statusValue = 'ก่อนเวลา';
+          else if (diff === 0) statusValue = 'ตรงเวลา';
+          else statusValue = 'ล่าช้า';
+        }
+      } else {
+        // If no actual completion date, but we have a deadline
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        if (deadline && isBefore(deadline, today)) {
+          // You could automatically mark as late here, but usually it stays 'Pending' 
+          // until actual completion or specialized overdue logic
+          statusValue = 'รอดำเนินการ';
+        }
+      }
     }
 
     if (!editingTask) {
@@ -496,6 +510,7 @@ export default function App() {
     setInitialForwardData({
       taskName: `[ส่งต่อ] ${task.taskName}`,
       progress: task.progress,
+      deadline: task.deadline,
       remarks: `ส่งต่อจาก: ${task.unit}`,
       responsible: task.responsible,
       groupId: task.groupId || task.id
@@ -1058,6 +1073,7 @@ export default function App() {
                       <th className="pb-4 px-2">ชื่องาน</th>
                       <th className="pb-4 px-2">หน่วยงาน</th>
                       <th className="pb-4 px-2">กำหนดเสร็จ</th>
+                      <th className="pb-4 px-2">เสร็จจริง</th>
                       <th className="pb-4 px-2 text-center">สถานะ</th>
                     </tr>
                   </thead>
@@ -1075,8 +1091,13 @@ export default function App() {
                           <p className="text-xs text-[#4B5563]">{task.unit}</p>
                         </td>
                         <td className="py-4 px-2">
-                          <p className="text-xs text-[#4B5563]">
+                          <p className="text-xs font-bold text-red-500">
                             {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                          </p>
+                        </td>
+                        <td className="py-4 px-2">
+                          <p className="text-xs font-bold text-emerald-500">
+                            {safeFormat(task.actualCompletion, 'dd/MM/yyyy')}
                           </p>
                         </td>
                         <td className="py-4 px-2">
@@ -1273,26 +1294,26 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">วันที่เริ่มต้น</label>
-                    <input 
-                      type="date" 
-                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                      value={deadlineStart}
-                      onChange={(e) => setDeadlineStart(e.target.value)}
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">กำหนดเสร็จ (เริ่มต้น)</label>
+                      <input 
+                        type="date" 
+                        className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={deadlineStart}
+                        onChange={(e) => setDeadlineStart(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">กำหนดเสร็จ (สิ้นสุด)</label>
+                      <input 
+                        type="date" 
+                        className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                        value={deadlineEnd}
+                        onChange={(e) => setDeadlineEnd(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[#6B7280] uppercase tracking-wider mb-2 ml-1">วันที่สิ้นสุด</label>
-                    <input 
-                      type="date" 
-                      className="w-full p-3 bg-white border border-[#E5E7EB] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                      value={deadlineEnd}
-                      onChange={(e) => setDeadlineEnd(e.target.value)}
-                    />
-                  </div>
-                </div>
 
                 <div className="flex justify-end">
                   <button 
@@ -1321,7 +1342,9 @@ export default function App() {
                     <th className="px-6 py-4">ลำดับ</th>
                     <th className="px-6 py-4">ชื่องาน / ประเภท</th>
                     <th className="px-6 py-4">หน่วยงาน / ผู้รับผิดชอบ</th>
-                    <th className="px-6 py-4">ความถี่ / กำหนดเสร็จ</th>
+                    <th className="px-6 py-4">ความถี่</th>
+                    <th className="px-6 py-4 text-center text-red-600">กำหนดเสร็จ</th>
+                    <th className="px-6 py-4 text-center text-emerald-600">เสร็จจริง</th>
                     <th className="px-6 py-4">ขั้นตอนการดำเนินงาน</th>
                     <th className="px-6 py-4 text-center">สถานะ</th>
                     <th className="px-6 py-4 text-right">จัดการ</th>
@@ -1363,8 +1386,15 @@ export default function App() {
                           </td>
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium">{task.frequency}</p>
-                            <p className="text-[10px] text-[#6B7280] mt-1">
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <p className="text-[10px] font-bold text-red-500">
                               {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                            </p>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <p className="text-[10px] font-bold text-emerald-500">
+                              {safeFormat(task.actualCompletion, 'dd/MM/yyyy')}
                             </p>
                           </td>
                           <td className="px-6 py-5">
@@ -1883,7 +1913,7 @@ export default function App() {
                     <input 
                       type="date"
                       name="deadline"
-                      defaultValue={editingTask?.deadline}
+                      defaultValue={editingTask?.deadline || initialForwardData?.deadline}
                       required
                       className="w-full p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                     />

@@ -1,5 +1,8 @@
 {
-  "name": "ระบบติดตามงาน (Task Tracker)",
-  "description": "ระบบติดตามการดำเนินงานรายหน่วยงาน 11 หน่วย พร้อมแดชบอร์ดสรุปผลสำหรับผู้บริหาร",
-  "requestFramePermissions": []
+  "name": "ระบบติดตามงาน (Task Tracker Pro)",
+  "description": "ระบบบริหารจัดการและติดตามความคืบหน้างานรายหน่วยงาน พร้อมระบบวิเคราะห์ข้อมูล (Dashboard) และการส่งต่องานอัตโนมัติ",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
