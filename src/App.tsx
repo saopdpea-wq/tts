@@ -1055,7 +1055,7 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">รายการงานล่าสุด</h3>
-                    <p className="text-sm text-[#6B7280]">งานที่เพิ่งอัปเดต 5 รายการล่าสุด</p>
+                    <p className="text-sm text-[#6B7280]">งานที่เพิ่งอัปเดต 20 รายการล่าสุด</p>
                   </div>
                 </div>
                 <button 
@@ -1078,7 +1078,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E7EB]">
-                    {tasks.slice(0, 10).map((task, index) => (
+                    {tasks.slice(0, 20).map((task, index) => (
                       <tr key={task.id} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="py-4 px-2 text-xs font-bold text-[#6B7280]">
                           {tasks.length - index}
