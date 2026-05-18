@@ -227,7 +227,9 @@ export default function App() {
       }
       
       const sortedData = (Array.isArray(data) ? data : []).sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
       });
       setTasks(sortedData);
     } catch (err: any) {
@@ -381,16 +383,20 @@ export default function App() {
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = task.taskName.toLowerCase().includes(searchLower) ||
-                          task.responsible.toLowerCase().includes(searchLower) ||
-                          // For unit search, we want to be more specific if it looks like a unit name
-                          task.unit.split(',').some(u => u.trim().toLowerCase().includes(searchLower)) ||
-                          (task.progress && task.progress.toLowerCase().includes(searchLower));
+      const taskName = task.taskName || '';
+      const responsible = task.responsible || '';
+      const unit = task.unit || '';
+      const progress = task.progress || '';
+
+      const matchesSearch = taskName.toLowerCase().includes(searchLower) ||
+                          responsible.toLowerCase().includes(searchLower) ||
+                          unit.split(',').some(u => u.trim().toLowerCase().includes(searchLower)) ||
+                          progress.toLowerCase().includes(searchLower);
       
       const matchesGroup = !groupQuery || (task.groupId && task.groupId.toLowerCase().includes(groupQuery.toLowerCase()));
       
       // Exact match for unit filter dropdown
-      const taskUnits = task.unit.split(',').map(u => u.trim());
+      const taskUnits = unit.split(',').map(u => u.trim());
       const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || taskUnits.includes(unitFilter);
       
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
@@ -538,7 +544,7 @@ export default function App() {
     const perf: Record<string, { total: number, completed: number, delayed: number }> = {};
     
     filteredDashTasks.forEach(t => {
-      const units = t.unit.split(',').map(u => u.trim());
+      const units = (t.unit || '').split(',').map(u => u.trim()).filter(Boolean);
       units.forEach(u => {
         if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
         perf[u].total += 1;

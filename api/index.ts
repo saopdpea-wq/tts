@@ -224,21 +224,21 @@ app.get("/api/tasks", async (req, res) => {
     
     const rows = await sheet.getRows();
     const tasks = rows.map(row => ({
-      id: row.get("รหัส"),
-      taskName: row.get("ชื่องาน"),
-      unit: row.get("หน่วยงาน"),
-      responsible: row.get("ผู้รับผิดชอบ"),
-      frequency: row.get("ความถี่"),
-      taskType: row.get("ประเภทงาน"),
-      progress: row.get("ขั้นตอนการดำเนินงาน"),
-      deadline: row.get("กำหนดแล้วเสร็จ"),
-      actualCompletion: row.get("ทำเสร็จจริง"),
-      delayDays: row.get("ล่าช้า (วัน)"),
-      status: row.get("สถานะ"),
-      remarks: row.get("หมายเหตุ"),
-      attachments: row.get("ไฟล์แนบ"),
-      groupId: row.get("รหัสกลุ่มงาน"),
-      createdAt: row.get("วันที่สร้าง"),
+      id: row.get("รหัส") || "",
+      taskName: row.get("ชื่องาน") || "",
+      unit: row.get("หน่วยงาน") || "",
+      responsible: row.get("ผู้รับผิดชอบ") || "",
+      frequency: row.get("ความถี่") || "",
+      taskType: row.get("ประเภทงาน") || "",
+      progress: row.get("ขั้นตอนการดำเนินงาน") || "",
+      deadline: row.get("กำหนดแล้วเสร็จ") || "",
+      actualCompletion: row.get("ทำเสร็จจริง") || "",
+      delayDays: row.get("ล่าช้า (วัน)") || "",
+      status: row.get("สถานะ") || "รอดำเนินการ",
+      remarks: row.get("หมายเหตุ") || "",
+      attachments: row.get("ไฟล์แนบ") || "",
+      groupId: row.get("รหัสกลุ่มงาน") || "",
+      createdAt: row.get("วันที่สร้าง") || "",
     }));
     res.json(tasks);
   } catch (error: any) {
