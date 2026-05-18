@@ -49,12 +49,22 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Date formatting helper
+// Date formatting and parsing helpers
+const safeParseDate = (dateStr: string | null | undefined) => {
+  if (!dateStr) return null;
+  // 1. Try ISO
+  const d = parseISO(dateStr);
+  if (isValid(d)) return d;
+  // 2. Try standard JS parsing (supports more formats)
+  const d2 = new Date(dateStr);
+  if (isValid(d2)) return d2;
+  return null;
+};
+
 const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
-  if (!dateStr) return '-';
+  const date = safeParseDate(dateStr);
+  if (!date) return '-';
   try {
-    const date = parseISO(dateStr);
-    if (!isValid(date)) return '-';
     return format(date, formatStr, { locale: th });
   } catch (error) {
     return '-';
@@ -189,8 +199,8 @@ export default function App() {
   const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'type' | 'status'>('none');
   
   // Dashboard Filters
-  const [dashMonth, setDashMonth] = useState<string>(format(new Date(), 'MM'));
-  const [dashYear, setDashYear] = useState<string>(format(new Date(), 'yyyy'));
+  const [dashMonth, setDashMonth] = useState<string>('all');
+  const [dashYear, setDashYear] = useState<string>('all');
 
   // File Upload State
   const [uploading, setUploading] = useState(false);
@@ -311,14 +321,16 @@ export default function App() {
     let delayDays = '0';
     
     if (taskData.actualCompletion && taskData.deadline) {
-      const actual = parseISO(taskData.actualCompletion);
-      const deadline = parseISO(taskData.deadline);
-      const diff = differenceInDays(actual, deadline);
-      delayDays = diff.toString();
-      
-      if (diff < 0) status = 'ก่อนเวลา';
-      else if (diff === 0) status = 'ตรงเวลา';
-      else status = 'ล่าช้า';
+      const actual = safeParseDate(taskData.actualCompletion);
+      const deadline = safeParseDate(taskData.deadline);
+      if (actual && deadline) {
+        const diff = differenceInDays(actual, deadline);
+        delayDays = diff.toString();
+        
+        if (diff < 0) status = 'ก่อนเวลา';
+        else if (diff === 0) status = 'ตรงเวลา';
+        else status = 'ล่าช้า';
+      }
     }
 
     if (!editingTask) {
@@ -502,9 +514,8 @@ export default function App() {
   // Dashboard Stats
   const filteredDashTasks = useMemo(() => {
     return tasks.filter(t => {
-      if (!t.createdAt) return dashMonth === 'all' && dashYear === 'all';
-      const d = parseISO(t.createdAt);
-      if (!isValid(d)) return dashMonth === 'all' && dashYear === 'all';
+      const d = safeParseDate(t.createdAt);
+      if (!d) return dashMonth === 'all' && dashYear === 'all';
       const matchesMonth = dashMonth === 'all' || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
       const matchesYear = dashYear === 'all' || d.getFullYear().toString() === dashYear;
       return matchesMonth && matchesYear;
@@ -521,9 +532,8 @@ export default function App() {
       
       // 2. Not completed yet but already past deadline
       if (t.status === 'รอดำเนินการ' && t.deadline) {
-        const deadlineDate = parseISO(t.deadline);
-        if (!isValid(deadlineDate)) return false;
-        return isBefore(deadlineDate, today);
+        const deadlineDate = safeParseDate(t.deadline);
+        return deadlineDate && isBefore(deadlineDate, today);
       }
       
       return false;
@@ -540,8 +550,8 @@ export default function App() {
     const delayedTasksList = tks.filter(t => {
       if (t.status === 'ล่าช้า') return true;
       if (t.status === 'รอดำเนินการ' && t.deadline) {
-        const d = parseISO(t.deadline);
-        return isValid(d) && isBefore(d, today);
+        const d = safeParseDate(t.deadline);
+        return d && isBefore(d, today);
       }
       return false;
     });
@@ -567,8 +577,8 @@ export default function App() {
         if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
         
         // Match the overdue logic
-        const deadlineDate = t.deadline ? parseISO(t.deadline) : null;
-        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && deadlineDate && isValid(deadlineDate) && isBefore(deadlineDate, today));
+        const deadlineDate = safeParseDate(t.deadline);
+        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && deadlineDate && isBefore(deadlineDate, today));
         if (isActuallyDelayed) perf[u].delayed += 1;
       });
     });
@@ -591,9 +601,8 @@ export default function App() {
     return last12Months.map(month => {
       const monthStr = format(month, 'MMM yy', { locale: th });
       const monthTasks = tasks.filter(t => {
-        if (!t.createdAt) return false;
-        const d = parseISO(t.createdAt);
-        if (!isValid(d)) return false;
+        const d = safeParseDate(t.createdAt);
+        if (!d) return false;
         return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear();
       });
       return {
@@ -1122,9 +1131,9 @@ export default function App() {
                               <span className="text-xs font-bold text-red-600">
                                 {safeFormat(task.deadline, 'dd/MM/yyyy')}
                               </span>
-                              {task.deadline && isValid(parseISO(task.deadline)) && (
+                              {task.deadline && safeParseDate(task.deadline) && (
                                 <span className="text-[10px] text-red-400 font-medium">
-                                  เกินกำหนด {differenceInDays(new Date(), parseISO(task.deadline))} วัน
+                                  เกินกำหนด {differenceInDays(new Date(), safeParseDate(task.deadline)!)} วัน
                                 </span>
                               )}
                             </div>
