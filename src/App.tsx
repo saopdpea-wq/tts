@@ -39,7 +39,7 @@ import {
   Pie, 
   Cell 
 } from 'recharts';
-import { format, differenceInDays, parseISO, isBefore, isAfter, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isValid } from 'date-fns';
+import { format, differenceInDays, parseISO, isBefore, isAfter, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -49,56 +49,11 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Date formatting and parsing helpers
-const safeParseDate = (dateStr: string | null | undefined) => {
-  if (!dateStr || dateStr === '-') return null;
-  
-  // 1. Try ISO format (YYYY-MM-DD...)
-  const d = parseISO(dateStr);
-  if (isValid(d)) return d;
-  
-  // 2. Try DD/MM/YYYY format (standard in this app's spreadsheet)
-  if (typeof dateStr === 'string' && dateStr.includes('/')) {
-    const parts = dateStr.split(' ')[0].split('/'); // Handle "DD/MM/YYYY HH:MM:SS"
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      let year = parseInt(parts[2], 10);
-      // Handle Thai Buddhist Era (BE)
-      if (year > 2400) year -= 543;
-      const d2 = new Date(year, month, day);
-      if (isValid(d2)) return d2;
-    }
-  }
-
-  // 3. Try standard JS parsing (supports more formats)
-  let d3 = new Date(dateStr);
-  if (isValid(d3)) {
-    // Also handle BE in standard JS parsing if year > 2400
-    if (d3.getFullYear() > 2400) {
-      d3 = new Date(d3.getFullYear() - 543, d3.getMonth(), d3.getDate());
-    }
-    return d3;
-  }
-  
-  return null;
-};
-
-const safeFormat = (dateStr: string | null | undefined, formatStr: string) => {
-  const date = safeParseDate(dateStr);
-  if (!date) return '-';
-  try {
-    return format(date, formatStr, { locale: th });
-  } catch (error) {
-    return '-';
-  }
-};
-
 // Types
 interface Task {
   id: string;
   taskName: string;
-  unit: string;
+  unit: string; // Will store comma-separated units
   responsible: string;
   frequency: string;
   taskType: string;
@@ -108,8 +63,8 @@ interface Task {
   delayDays: string;
   status: 'ก่อนเวลา' | 'ตรงเวลา' | 'ล่าช้า' | 'รอดำเนินการ';
   remarks: string;
-  attachments?: string;
-  groupId?: string;
+  attachments?: string; // Google Drive link
+  groupId?: string; // To track linked tasks
   createdAt: string;
 }
 
@@ -222,8 +177,8 @@ export default function App() {
   const [groupBy, setGroupBy] = useState<'none' | 'unit' | 'type' | 'status'>('none');
   
   // Dashboard Filters
-  const [dashMonth, setDashMonth] = useState<string>('all');
-  const [dashYear, setDashYear] = useState<string>('all');
+  const [dashMonth, setDashMonth] = useState<string>(format(new Date(), 'MM'));
+  const [dashYear, setDashYear] = useState<string>(format(new Date(), 'yyyy'));
 
   // File Upload State
   const [uploading, setUploading] = useState(false);
@@ -272,9 +227,7 @@ export default function App() {
       }
       
       const sortedData = (Array.isArray(data) ? data : []).sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
       setTasks(sortedData);
     } catch (err: any) {
@@ -344,16 +297,14 @@ export default function App() {
     let delayDays = '0';
     
     if (taskData.actualCompletion && taskData.deadline) {
-      const actual = safeParseDate(taskData.actualCompletion);
-      const deadline = safeParseDate(taskData.deadline);
-      if (actual && deadline) {
-        const diff = differenceInDays(actual, deadline);
-        delayDays = diff.toString();
-        
-        if (diff < 0) status = 'ก่อนเวลา';
-        else if (diff === 0) status = 'ตรงเวลา';
-        else status = 'ล่าช้า';
-      }
+      const actual = parseISO(taskData.actualCompletion);
+      const deadline = parseISO(taskData.deadline);
+      const diff = differenceInDays(actual, deadline);
+      delayDays = diff.toString();
+      
+      if (diff < 0) status = 'ก่อนเวลา';
+      else if (diff === 0) status = 'ตรงเวลา';
+      else status = 'ล่าช้า';
     }
 
     if (!editingTask) {
@@ -430,20 +381,16 @@ export default function App() {
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       const searchLower = searchQuery.toLowerCase();
-      const taskName = task.taskName || '';
-      const responsible = task.responsible || '';
-      const unit = task.unit || '';
-      const progress = task.progress || '';
-
-      const matchesSearch = taskName.toLowerCase().includes(searchLower) ||
-                          responsible.toLowerCase().includes(searchLower) ||
-                          unit.split(',').some(u => u.trim().toLowerCase().includes(searchLower)) ||
-                          progress.toLowerCase().includes(searchLower);
+      const matchesSearch = task.taskName.toLowerCase().includes(searchLower) ||
+                          task.responsible.toLowerCase().includes(searchLower) ||
+                          // For unit search, we want to be more specific if it looks like a unit name
+                          task.unit.split(',').some(u => u.trim().toLowerCase().includes(searchLower)) ||
+                          (task.progress && task.progress.toLowerCase().includes(searchLower));
       
       const matchesGroup = !groupQuery || (task.groupId && task.groupId.toLowerCase().includes(groupQuery.toLowerCase()));
       
       // Exact match for unit filter dropdown
-      const taskUnits = unit.split(',').map(u => u.trim());
+      const taskUnits = task.unit.split(',').map(u => u.trim());
       const matchesUnit = unitFilter === 'ทุกหน่วยงาน' || taskUnits.includes(unitFilter);
       
       const matchesStatus = statusFilter === 'ทุกสถานะ' || task.status === statusFilter;
@@ -500,11 +447,11 @@ export default function App() {
       'ชื่องาน': task.taskName,
       'ประเภทงาน': task.taskType,
       'หน่วยงานที่รับผิดชอบ': task.unit,
-      'สถานีไฟฟ้า / แผนก': task.unit, 
+      'สถานีไฟฟ้า / แผนก': task.unit, // In this app, unit and station are mixed in the same field
       'ความถี่': task.frequency,
       'ผู้รับผิดชอบ': task.responsible,
-      'กำหนดแล้วเสร็จ': safeFormat(task.deadline, 'dd/MM/yyyy'),
-      'ทำเสร็จจริง': safeFormat(task.actualCompletion, 'dd/MM/yyyy'),
+      'กำหนดแล้วเสร็จ': task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-',
+      'ทำเสร็จจริง': task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-',
       'Update ขั้นตอนการดำเนินงานอย่างละเอียด': task.progress || '-',
       'หมายเหตุ': task.remarks || '-',
       'ไฟล์แนบ': task.attachments || '-'
@@ -537,9 +484,9 @@ export default function App() {
   // Dashboard Stats
   const filteredDashTasks = useMemo(() => {
     return tasks.filter(t => {
-      const d = safeParseDate(t.createdAt);
-      if (!d) return dashMonth === 'all' && dashYear === 'all';
-      const matchesMonth = dashMonth === 'all' || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
+      const d = parseISO(t.createdAt);
+      const isYearly = dashMonth === 'all' || dashMonth === 'yearly';
+      const matchesMonth = isYearly || (d.getMonth() + 1).toString().padStart(2, '0') === dashMonth;
       const matchesYear = dashYear === 'all' || d.getFullYear().toString() === dashYear;
       return matchesMonth && matchesYear;
     });
@@ -555,8 +502,8 @@ export default function App() {
       
       // 2. Not completed yet but already past deadline
       if (t.status === 'รอดำเนินการ' && t.deadline) {
-        const deadlineDate = safeParseDate(t.deadline);
-        return deadlineDate && isBefore(deadlineDate, today);
+        const deadlineDate = parseISO(t.deadline);
+        return isBefore(deadlineDate, today);
       }
       
       return false;
@@ -571,22 +518,17 @@ export default function App() {
     
     // Updated logic: delayed includes tasks past deadline even if still 'รอดำเนินการ'
     const delayedTasksList = tks.filter(t => {
-      const status = (t.status || '').trim();
-      if (status === 'ล่าช้า') return true;
-      if (status === 'รอดำเนินการ' && t.deadline) {
-        const d = safeParseDate(t.deadline);
-        return d && isBefore(d, today);
+      if (t.status === 'ล่าช้า') return true;
+      if (t.status === 'รอดำเนินการ' && t.deadline) {
+        return isBefore(parseISO(t.deadline), today);
       }
       return false;
     });
     
     const delayed = delayedTasksList.length;
-    const pending = tks.filter(t => {
-      const status = (t.status || '').trim();
-      return status === 'รอดำเนินการ' && !delayedTasksList.includes(t);
-    }).length;
-    const early = tks.filter(t => (t.status || '').trim() === 'ก่อนเวลา').length;
-    const onTime = tks.filter(t => (t.status || '').trim() === 'ตรงเวลา').length;
+    const pending = tks.filter(t => t.status === 'รอดำเนินการ' && !delayedTasksList.includes(t)).length;
+    const early = tks.filter(t => t.status === 'ก่อนเวลา').length;
+    const onTime = tks.filter(t => t.status === 'ตรงเวลา').length;
     
     return { total, pending, early, onTime, delayed };
   }, [filteredDashTasks]);
@@ -597,16 +539,14 @@ export default function App() {
     const perf: Record<string, { total: number, completed: number, delayed: number }> = {};
     
     filteredDashTasks.forEach(t => {
-      const units = (t.unit || '').split(',').map(u => u.trim()).filter(Boolean);
-      const status = (t.status || '').trim();
+      const units = t.unit.split(',').map(u => u.trim());
       units.forEach(u => {
         if (!perf[u]) perf[u] = { total: 0, completed: 0, delayed: 0 };
         perf[u].total += 1;
-        if (status !== 'รอดำเนินการ') perf[u].completed += 1;
+        if (t.status !== 'รอดำเนินการ') perf[u].completed += 1;
         
         // Match the overdue logic
-        const deadlineDate = safeParseDate(t.deadline);
-        const isActuallyDelayed = status === 'ล่าช้า' || (status === 'รอดำเนินการ' && deadlineDate && isBefore(deadlineDate, today));
+        const isActuallyDelayed = t.status === 'ล่าช้า' || (t.status === 'รอดำเนินการ' && t.deadline && isBefore(parseISO(t.deadline), today));
         if (isActuallyDelayed) perf[u].delayed += 1;
       });
     });
@@ -629,8 +569,7 @@ export default function App() {
     return last12Months.map(month => {
       const monthStr = format(month, 'MMM yy', { locale: th });
       const monthTasks = tasks.filter(t => {
-        const d = safeParseDate(t.createdAt);
-        if (!d) return false;
+        const d = parseISO(t.createdAt);
         return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear();
       });
       return {
@@ -879,6 +818,7 @@ export default function App() {
                     const m = (i + 1).toString().padStart(2, '0');
                     return <option key={m} value={m}>{format(new Date(2024, i, 1), 'MMMM', { locale: th })}</option>;
                   })}
+                  <option value="yearly">ดูภาพรวมรายปี (ม.ค. - ธ.ค.)</option>
                 </select>
                 <select 
                   value={dashYear}
@@ -1074,7 +1014,7 @@ export default function App() {
                         </td>
                         <td className="py-4 px-2">
                           <p className="text-xs text-[#4B5563]">
-                            {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
                           </p>
                         </td>
                         <td className="py-4 px-2">
@@ -1157,11 +1097,11 @@ export default function App() {
                           <td className="px-6 py-5">
                             <div className="flex flex-col">
                               <span className="text-xs font-bold text-red-600">
-                                {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                                {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
                               </span>
-                              {task.deadline && safeParseDate(task.deadline) && (
+                              {task.deadline && (
                                 <span className="text-[10px] text-red-400 font-medium">
-                                  เกินกำหนด {differenceInDays(new Date(), safeParseDate(task.deadline)!)} วัน
+                                  เกินกำหนด {differenceInDays(new Date(), parseISO(task.deadline))} วัน
                                 </span>
                               )}
                             </div>
@@ -1359,7 +1299,7 @@ export default function App() {
                           <td className="px-6 py-5">
                             <p className="text-xs font-medium">{task.frequency}</p>
                             <p className="text-[10px] text-[#6B7280] mt-1">
-                              {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
                             </p>
                           </td>
                           <td className="px-6 py-5">
@@ -1464,7 +1404,7 @@ export default function App() {
                           <div>
                             <p className="text-[#6B7280] uppercase font-bold text-[9px]">กำหนดเสร็จ</p>
                             <p className="font-medium text-[#4B5563]">
-                              {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                              {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
                             </p>
                           </div>
                         </div>
@@ -1593,10 +1533,10 @@ export default function App() {
                             <p className="text-[10px] text-[#6B7280] uppercase">{task.taskType}</p>
                           </td>
                           <td className="px-6 py-4 text-xs">
-                            {safeFormat(task.deadline, 'dd/MM/yyyy')}
+                            {task.deadline ? format(parseISO(task.deadline), 'dd/MM/yyyy') : '-'}
                           </td>
                           <td className="px-6 py-4 text-xs">
-                            {safeFormat(task.actualCompletion, 'dd/MM/yyyy')}
+                            {task.actualCompletion ? format(parseISO(task.actualCompletion), 'dd/MM/yyyy') : '-'}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex justify-center">
