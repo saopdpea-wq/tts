@@ -247,10 +247,44 @@ export default function App() {
         throw new Error(data.error || 'ไม่สามารถดึงข้อมูลได้');
       }
       
-      const normalizedData = (Array.isArray(data) ? data : []).map(task => ({
-        ...task,
-        status: task.status === '0' || !task.status ? 'รอดำเนินการ' : task.status
-      }));
+      const normalizedData = (Array.isArray(data) ? data : []).map(task => {
+        let status = task.status;
+        
+        // If status is empty, '0', or numeric (like -15, -1), fix it
+        const isNumericStatus = status && !isNaN(Number(status)) && 
+                                status !== 'ตรงเวลา' && 
+                                status !== 'ก่อนเวลา' && 
+                                status !== 'ล่าช้า' && 
+                                status !== 'รอดำเนินการ';
+        
+        if (!status || status === '0' || isNumericStatus) {
+          if (task.actualCompletion && task.deadline) {
+            const actual = safeParseISO(task.actualCompletion);
+            const deadline = safeParseISO(task.deadline);
+            if (actual && deadline) {
+              const diff = differenceInDays(actual, deadline);
+              if (diff < 0) status = 'ก่อนเวลา';
+              else if (diff === 0) status = 'ตรงเวลา';
+              else status = 'ล่าช้า';
+            } else {
+              status = 'รอดำเนินการ';
+            }
+          } else if (task.delayDays && !isNaN(Number(task.delayDays))) {
+            const diff = Number(task.delayDays);
+            if (diff < 0) status = 'ก่อนเวลา';
+            else if (diff === 0) status = 'ตรงเวลา';
+            else if (diff > 0) status = 'ล่าช้า';
+            else status = 'รอดำเนินการ';
+          } else {
+            status = 'รอดำเนินการ';
+          }
+        }
+        
+        return {
+          ...task,
+          status: status as Task['status']
+        };
+      });
 
       const sortedData = normalizedData.sort((a, b) => {
         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -1347,19 +1381,33 @@ export default function App() {
                             )}
                           </td>
                           <td className="px-6 py-5">
-                            <div className="flex justify-center">
+                            <div className="flex flex-col items-center">
                               {(() => {
-                                const displayStatus = task.status === '0' || !task.status ? 'รอดำเนินการ' : task.status;
+                                const displayStatus = task.status;
+                                const isEarly = displayStatus === 'ก่อนเวลา';
+                                const isLate = displayStatus === 'ล่าช้า';
+                                const days = task.delayDays ? Math.abs(Number(task.delayDays)) : 0;
+
                                 return (
-                                  <span className={cn(
-                                    "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                                    displayStatus === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                    displayStatus === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                    displayStatus === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
-                                    "bg-amber-50 text-amber-600 border-amber-100"
-                                  )}>
-                                    {displayStatus}
-                                  </span>
+                                  <>
+                                    <span className={cn(
+                                      "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                                      displayStatus === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                      displayStatus === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                      displayStatus === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                                      "bg-amber-50 text-amber-600 border-amber-100"
+                                    )}>
+                                      {displayStatus}
+                                    </span>
+                                    {(isEarly || isLate) && days > 0 && (
+                                      <span className={cn(
+                                        "text-[9px] mt-1 font-bold",
+                                        isEarly ? "text-emerald-500" : "text-red-500"
+                                      )}>
+                                        {days} วัน
+                                      </span>
+                                    )}
+                                  </>
                                 );
                               })()}
                             </div>
@@ -1421,15 +1469,25 @@ export default function App() {
                             </div>
                             <p className="text-[10px] text-[#6B7280] uppercase font-medium mt-1">{task.taskType}</p>
                           </div>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap ml-2",
-                            task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                            task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
-                            "bg-amber-50 text-amber-600 border-amber-100"
-                          )}>
-                            {task.status}
-                          </span>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border whitespace-nowrap",
+                              task.status === 'ก่อนเวลา' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                              task.status === 'ตรงเวลา' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                              task.status === 'ล่าช้า' ? "bg-red-50 text-red-600 border-red-100" :
+                              "bg-amber-50 text-amber-600 border-amber-100"
+                            )}>
+                              {task.status}
+                            </span>
+                            {(task.status === 'ก่อนเวลา' || task.status === 'ล่าช้า') && task.delayDays && Math.abs(Number(task.delayDays)) > 0 && (
+                              <span className={cn(
+                                "text-[8px] font-bold",
+                                task.status === 'ก่อนเวลา' ? "text-emerald-500" : "text-red-500"
+                              )}>
+                                {Math.abs(Number(task.delayDays))} วัน
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 text-[11px]">
